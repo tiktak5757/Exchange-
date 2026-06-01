@@ -1,0 +1,25 @@
+{
+  "name": "دفتر حسابات محمد محمود الحداد",
+  "short_name": "دفتر الحسابات",
+  "description": "Account Ledger - Mohammed Mahmoud Al-Haddad",
+  "start_url": "/Exchange-/daftar.html",
+  "scope": "/Exchange-/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a7a4a",
+  "theme_color": "#1a7a4a",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
