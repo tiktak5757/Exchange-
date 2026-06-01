@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>دفتر الصرافة | Exchange Ledger</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root {
+  --gold:#c9a84c;--gold-light:#f0d080;--gold-dim:#7a6128;
+  --dark:#0e0e0e;--dark2:#181818;--dark3:#222;--dark4:#2c2c2c;
+  --border:#333;--text:#e8e0cc;--text-dim:#888;
+  --green:#4caf7d;--red:#e05555;--blue:#5b9bd5;--orange:#e8923a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo',sans-serif;background:var(--dark);color:var(--text);min-height:100vh}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#111,#1a1610,#111);border-bottom:2px solid var(--gold-dim);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:8px;flex-wrap:wrap}
+.logo-ar{font-size:20px;font-weight:900;color:var(--gold)}
+.logo-en{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:3px;font-family:'IBM Plex Mono',monospace}
+.hdate{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim)}
+.hdate span{display:block;font-size:13px;color:var(--gold-light);font-weight:600}
+.hbtn{background:var(--dark4);border:1px solid var(--border);color:var(--text-dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:12px;transition:all .2s}
+.hbtn:hover{border-color:var(--gold);color:var(--gold)}
+
+/* TABS */
+.tabs{display:flex;background:var(--dark2);border-bottom:1px solid var(--border);padding:0 14px;gap:2px;overflow-x:auto}
+.tab{padding:12px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-dim);border-bottom:3px solid transparent;transition:all .2s;white-space:nowrap}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab:hover:not(.active){color:var(--text)}
+
+.main{padding:18px;max-width:1200px;margin:0 auto}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:20px}
+.sc{background:var(--dark2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;top:0;right:0;width:45px;height:3px;border-radius:0 12px 0 0}
+.sc.gold::before{background:var(--gold)}.sc.green::before{background:var(--green)}
+.sc.red::before{background:var(--red)}.sc.blue::before{background:var(--blue)}.sc.orange::before{background:var(--orange)}
+.slabel{font-size:10px;color:var(--text-dim);margin-bottom:5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+.sval{font-size:20px;font-weight:900;font-family:'IBM Plex Mono',monospace}
+.sc.gold .sval{color:var(--gold-light)}.sc.green .sval{color:var(--green)}
+.sc.red .sval{color:var(--red)}.sc.blue .sval{color:var(--blue)}.sc.orange .sval{color:var(--orange)}
+
+/* FORM */
+.fc{background:var(--dark2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:20px}
+.ftitle{font-size:14px;font-weight:700;color:var(--gold);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.ftitle::after{content:'';flex:1;height:1px;background:var(--border)}
+.fg label{display:block;font-size:10px;color:var(--text-dim);margin-bottom:4px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.5px}
+.fg input,.fg select{width:100%;background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:8px;font-family:'Cairo',sans-serif;font-size:13px;transition:border-color .2s;outline:none}
+.fg input:focus,.fg select:focus{border-color:var(--gold)}
+.fg select option{background:var(--dark3)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;align-items:end}
+
+
+/* BUTTONS */
+.btn{padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;transition:all .2s;white-space:nowrap}
+.btn-gold{background:linear-gradient(135deg,var(--gold),#a07830);color:#111}
+.btn-gold:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--text-dim)}
+.btn-out:hover{border-color:var(--gold);color:var(--gold)}
+.btn-sm{font-size:11px;padding:4px 9px;border:none;border-radius:6px;cursor:pointer;font-family:'Cairo',sans-serif;font-weight:600;transition:all .2s}
+.btn-pdf{background:rgba(224,85,85,.15);color:var(--red);border:1px solid rgba(224,85,85,.3)}
+.btn-pdf:hover{background:var(--red);color:#fff}
+.btn-wa{background:#25D366;color:#fff}
+.btn-wa:hover{filter:brightness(1.1)}
+.btn-del{background:rgba(224,85,85,.1);color:var(--red);border:1px solid rgba(224,85,85,.25)}
+.btn-del:hover{background:var(--red);color:#fff}
+.btn-view{background:rgba(91,155,213,.12);color:var(--blue);border:1px solid rgba(91,155,213,.25)}
+.btn-view:hover{background:var(--blue);color:#fff}
+.btn-settle{background:rgba(76,175,125,.12);color:var(--green);border:1px solid rgba(76,175,125,.25)}
+.btn-settle:hover{background:var(--green);color:#fff}
+
+/* TABLE */
+.tc{background:var(--dark2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:20px}
+.thead2{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.ttitle{font-size:13px;font-weight:700;color:var(--gold)}
+.tact{display:flex;gap:6px;flex-wrap:wrap}
+.frow{padding:9px 14px;display:flex;gap:7px;align-items:center;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.frow input,.frow select{background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:5px 9px;border-radius:6px;font-family:'Cairo',sans-serif;font-size:12px;outline:none}
+.frow input:focus,.frow select:focus{border-color:var(--gold)}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--dark3);padding:9px 11px;text-align:right;font-size:10px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid #1e1e1e;transition:background .15s}
+tbody tr:hover{background:#1a1a1a}
+tbody td{padding:10px 11px;font-size:12px;white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;font-family:'IBM Plex Mono',monospace}
+.bbuy{background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.3)}
+.bsell{background:rgba(224,85,85,.15);color:var(--red);border:1px solid rgba(224,85,85,.3)}
+.bopen{background:rgba(232,146,58,.15);color:var(--orange);border:1px solid rgba(232,146,58,.3)}
+.bsettled{background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.3)}
+.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.empty{text-align:center;padding:44px 20px;color:var(--text-dim);font-size:13px}
+.empty div{font-size:34px;margin-bottom:8px}
+
+/* CUSTOMER CARDS */
+.cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.cust-card{background:var(--dark2);border:1px solid var(--border);border-radius:14px;padding:18px;cursor:pointer;transition:border-color .2s}
+.cust-card:hover{border-color:var(--gold)}
+.cust-avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--gold-dim),var(--gold));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#111;margin-bottom:10px}
+.cust-name{font-size:16px;font-weight:700}
+.cust-phone{font-size:11px;color:var(--text-dim);margin-bottom:10px}
+.cust-stats{display:flex;gap:14px;font-size:12px}
+.cust-stat span{display:block;font-size:10px;color:var(--text-dim);margin-bottom:1px}
+.cust-stat strong{font-family:'IBM Plex Mono',monospace}
+.cust-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+
+/* MODAL */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.overlay.open{display:flex}
+.modal{background:var(--dark2);border:1px solid var(--gold-dim);border-radius:16px;padding:24px;width:100%;max-width:700px;margin:auto}
+.modal-title{font-size:15px;font-weight:700;color:var(--gold);margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+.close-btn{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1}
+.close-btn:hover{color:var(--text)}
+.modal-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:flex-end}
+
+/* BALANCE */
+.bal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.bal-card{background:var(--dark2);border:1px solid var(--border);border-radius:14px;padding:18px}
+.bal-flag{font-size:26px;margin-bottom:6px}
+.bal-name{font-size:10px;color:var(--text-dim);margin-bottom:2px}
+.bal-code{font-size:19px;font-weight:900;color:var(--gold);font-family:'IBM Plex Mono',monospace;margin-bottom:10px}
+.bal-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
+.bal-div{height:1px;background:var(--border);margin:8px 0}
+.bal-net{display:flex;justify-content:space-between;font-size:13px;font-weight:700}
+
+.page{display:none}.page.active{display:block}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--dark2)}
+::-webkit-scrollbar-thumb{background:var(--dark4);border-radius:3px}
+
+@media print{
+  header,.tabs,.fc,.tact,.frow,.btn-del,.btn-sm,.hbtn,.overlay{display:none!important}
+  body{background:#fff;color:#000}.main{padding:8px}
+  .sval{color:#000!important}.ttitle{color:#000}
+  table{font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div><div class="logo-ar">دفتر الصرافة</div><div class="logo-en">Exchange Ledger</div></div>
+  <div class="hdate"><span id="hDate"></span><span id="hTime"></span></div>
+  <div style="display:flex;gap:6px">
+    <button class="hbtn" onclick="toggleLang()">EN / عر</button>
+    <button class="hbtn" onclick="window.print()">🖨️</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showPage('tx')" id="tab-tx">💱 المعاملات</div>
+  <div class="tab" onclick="showPage('customers')" id="tab-customers">👥 العملاء</div>
+  <div class="tab" onclick="showPage('balance')" id="tab-balance">📊 الرصيد</div>
+  <div class="tab" onclick="showPage('debts')" id="tab-debts">💳 الديون</div>
+  <div class="tab" onclick="showPage('rates')" id="tab-rates">📈 الأسعار</div>
+</div>
+
+<div class="main">
+
+<!-- ══════════ TRANSACTIONS ══════════ -->
+<div class="page active" id="page-tx">
+  <div class="stats-row">
+    <div class="sc gold"><div class="slabel">المعاملات / Transactions</div><div class="sval" id="s1">0</div></div>
+    <div class="sc green"><div class="slabel">إجمالي الشراء / Bought</div><div class="sval" id="s2">£0</div></div>
+    <div class="sc red"><div class="slabel">إجمالي البيع / Sold</div><div class="sval" id="s3">£0</div></div>
+    <div class="sc blue"><div class="slabel">صافي الربح / Profit</div><div class="sval" id="s4">£0</div></div>
+    <div class="sc orange"><div class="slabel">الديون / Debts</div><div class="sval" id="s5">£0</div></div>
+  </div>
+
+  <div class="fc">
+    <div class="ftitle">➕ إضافة معاملة جديدة / New Transaction</div>
+    <div class="fgrid">
+      <div class="fg"><label>التاريخ / Date</label><input type="date" id="fDate"></div>
+      <div class="fg"><label>النوع / Type</label>
+        <select id="fType">
+          <option value="buy">شراء / Buy</option>
+          <option value="sell">بيع / Sell</option>
+        </select>
+      </div>
+      <div class="fg"><label>العملة / Currency</label>
+        <select id="fCur" size="1">
+          <option value="SAR">🇸🇦 SAR – ريال سعودي</option>
+          <option value="AED">🇦🇪 AED – درهم إماراتي</option>
+          <option value="KWD">🇰🇼 KWD – دينار كويتي</option>
+          <option value="BHD">🇧🇭 BHD – دينار بحريني</option>
+          <option value="QAR">🇶🇦 QAR – ريال قطري</option>
+          <option value="OMR">🇴🇲 OMR – ريال عماني</option>
+          <option value="JOD">🇯🇴 JOD – دينار أردني</option>
+          <option value="IQD">🇮🇶 IQD – دينار عراقي</option>
+          <option value="SYP">🇸🇾 SYP – ليرة سورية</option>
+          <option value="LBP">🇱🇧 LBP – ليرة لبنانية</option>
+          <option value="EGP">🇪🇬 EGP – جنيه مصري</option>
+          <option value="LYD">🇱🇾 LYD – دينار ليبي</option>
+          <option value="TND">🇹🇳 TND – دينار تونسي</option>
+          <option value="DZD">🇩🇿 DZD – دينار جزائري</option>
+          <option value="MAD">🇲🇦 MAD – درهم مغربي</option>
+          <option value="MRO">🇲🇷 MRO – أوقية موريتانية</option>
+          <option value="SDG">🇸🇩 SDG – جنيه سوداني</option>
+          <option value="SOS">🇸🇴 SOS – شلن صومالي</option>
+          <option value="DJF">🇩🇯 DJF – فرنك جيبوتي</option>
+          <option value="KMF">🇰🇲 KMF – فرنك قمري</option>
+          <option value="YER">🇾🇪 YER – ريال يمني</option>
+          <option value="PSP">🇵🇸 PSP – شيكل فلسطيني</option>
+          <option value="GBP">🇬🇧 GBP – جنيه إسترليني</option>
+          <option value="USD">🇺🇸 USD – دولار أمريكي</option>
+          <option value="EUR">🇪🇺 EUR – يورو</option>
+          <option value="TRY">🇹🇷 TRY – ليرة تركية</option>
+          <option value="PKR">🇵🇰 PKR – روبية باكستانية</option>
+          <option value="INR">🇮🇳 INR – روبية هندية</option>
+          <option value="CNY">🇨🇳 CNY – يوان صيني</option>
+          <option value="CAD">🇨🇦 CAD – دولار كندي</option>
+          <option value="AUD">🇦🇺 AUD – دولار أسترالي</option>
+          <option value="CHF">🇨🇭 CHF – فرنك سويسري</option>
+        </select>
+      </div>
+      <div class="fg"><label>المبلغ / Amount</label><input type="number" id="fAmt" placeholder="0.00" step="0.01"></div>
+      <div class="fg"><label>السعر GBP / Rate</label><input type="number" id="fRate" placeholder="0.00000" step="0.00001"></div>
+
+      <div class="fg"><label>اسم العميل / Customer</label><input type="text" id="fCust" placeholder="مطلوب / Required" list="custList"><datalist id="custList"></datalist></div>
+      <div class="fg"><label>واتساب / WhatsApp</label><input type="text" id="fPhone" placeholder="+447..."></div>
+      <div class="fg"><label>ملاحظات / Notes</label><input type="text" id="fNotes" placeholder="اختياري"></div>
+      <div class="fg" style="display:flex;align-items:flex-end">
+        <button class="btn btn-gold" onclick="addTx()" style="width:100%">✓ تسجيل / Record</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tc">
+    <div class="thead2">
+      <div class="ttitle">📋 سجل المعاملات / Transaction Log</div>
+      <div class="tact">
+        <button class="btn btn-out" onclick="exportCSV()" style="font-size:12px;padding:7px 14px">📤 CSV</button>
+        <button class="btn btn-out" onclick="clearAll()" style="font-size:12px;padding:7px 14px;border-color:var(--red);color:var(--red)">🗑️ مسح الكل</button>
+      </div>
+    </div>
+    <div class="frow">
+      <input type="date" id="fd1" onchange="renderTx()">
+      <select id="ft1" onchange="renderTx()"><option value="">الكل</option><option value="buy">شراء</option><option value="sell">بيع</option></select>
+      <select id="fc1" onchange="renderTx()" style="min-width:85px"><option value="">كل العملات</option></select>
+      <input type="text" id="fk1" oninput="renderTx()" placeholder="بحث عميل..." style="flex:1;min-width:110px">
+    </div>
+    <div style="overflow-x:auto">
+      <table><thead><tr>
+        <th>التاريخ</th><th>النوع</th><th>العملة</th><th>المبلغ</th><th>السعر</th><th>القيمة GBP</th><th>العميل</th><th>ملاحظات</th><th>إجراءات</th>
+      </tr></thead><tbody id="txBody"></tbody></table>
+      <div class="empty" id="txEmpty" style="display:none"><div>💱</div>لا توجد معاملات بعد</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CUSTOMERS ══════════ -->
+<div class="page" id="page-customers">
+  <div class="stats-row">
+    <div class="sc gold"><div class="slabel">إجمالي العملاء / Customers</div><div class="sval" id="cTotal">0</div></div>
+    <div class="sc blue"><div class="slabel">إجمالي المعاملات / Transactions</div><div class="sval" id="cTx">0</div></div>
+  </div>
+  <div class="fc" style="margin-bottom:18px">
+    <div class="fgrid" style="grid-template-columns:1fr 1fr auto">
+      <div class="fg"><label>بحث عميل / Search</label><input type="text" id="custSearch" oninput="renderCustomers()" placeholder="اسم العميل..."></div>
+      <div class="fg"></div>
+    </div>
+  </div>
+  <div class="cust-grid" id="custGrid">
+    <div class="empty" style="grid-column:1/-1"><div>👥</div>لا يوجد عملاء. أضف معاملات لإنشاء ملفات العملاء تلقائياً.</div>
+  </div>
+</div>
+
+<!-- ══════════ BALANCE ══════════ -->
+<div class="page" id="page-balance">
+  <div class="stats-row">
+    <div class="sc green"><div class="slabel">إجمالي الربح / Total Profit</div><div class="sval" id="bProfit">£0</div></div>
+    <div class="sc gold"><div class="slabel">العملات المتداولة / Currencies</div><div class="sval" id="bCurr">0</div></div>
+  </div>
+  <div class="bal-grid" id="balGrid"><div class="empty" style="grid-column:1/-1"><div>📊</div>أضف معاملات لرؤية الرصيد</div></div>
+</div>
+
+<!-- ══════════ DEBTS ══════════ -->
+<div class="page" id="page-debts">
+  <div class="stats-row">
+    <div class="sc orange"><div class="slabel">مستحق لي / Owed to me</div><div class="sval" id="d1">£0</div></div>
+    <div class="sc red"><div class="slabel">أدين به / I owe</div><div class="sval" id="d2">£0</div></div>
+    <div class="sc blue"><div class="slabel">عدد الديون / Count</div><div class="sval" id="d3">0</div></div>
+  </div>
+  <div class="fc">
+    <div class="ftitle">➕ إضافة دين / Add Debt</div>
+    <div class="fgrid">
+      <div class="fg"><label>التاريخ</label><input type="date" id="ddDate"></div>
+      <div class="fg"><label>اسم العميل *</label><input type="text" id="ddCust" placeholder="الاسم" list="custList2"><datalist id="custList2"></datalist></div>
+      <div class="fg"><label>واتساب</label><input type="text" id="ddPhone" placeholder="+447..."></div>
+      <div class="fg"><label>النوع</label>
+        <select id="ddType">
+          <option value="owed_to_me">يدين لي / Owes me</option>
+          <option value="i_owe">أدين له / I owe</option>
+        </select>
+      </div>
+      <div class="fg"><label>المبلغ GBP *</label><input type="number" id="ddAmt" placeholder="0.00" step="0.01"></div>
+      <div class="fg"><label>تفاصيل العملة</label><input type="text" id="ddCurNote" placeholder="مثال: 500 USD"></div>
+      <div class="fg"><label>ملاحظات</label><input type="text" id="ddNotes" placeholder="سبب الدين..."></div>
+      <div class="fg" style="display:flex;align-items:flex-end">
+        <button class="btn btn-gold" onclick="addDebt()" style="width:100%">✓ إضافة / Add</button>
+      </div>
+    </div>
+  </div>
+  <div class="tc">
+    <div class="thead2">
+      <div class="ttitle">📋 سجل الديون / Debt Register</div>
+      <div class="tact">
+        <select id="dfil" onchange="renderDebts()" style="background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:12px;outline:none">
+          <option value="">الكل</option><option value="owed_to_me">يدين لي</option><option value="i_owe">أدين له</option><option value="settled">مسدد</option>
+        </select>
+        <input type="text" id="dsearch" oninput="renderDebts()" placeholder="بحث..." style="background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-family:Cairo,sans-serif;font-size:12px;outline:none;width:120px">
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table><thead><tr><th>التاريخ</th><th>العميل</th><th>النوع</th><th>المبلغ GBP</th><th>العملة</th><th>الحالة</th><th>ملاحظات</th><th>إجراءات</th></tr></thead>
+      <tbody id="debtBody"></tbody></table>
+      <div class="empty" id="debtEmpty" style="display:none"><div>💳</div>لا توجد ديون مسجلة</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ RATES ══════════ -->
+<div class="page" id="page-rates">
+  <div class="fc">
+    <div class="ftitle">⚙️ إدارة أسعار الصرف / Manage Rates (GBP base)</div>
+    <div class="fgrid">
+      <div class="fg"><label>العملة</label>
+        <select id="rCur">
+          <option value="SAR">🇸🇦 SAR</option><option value="AED">🇦🇪 AED</option>
+          <option value="KWD">🇰🇼 KWD</option><option value="BHD">🇧🇭 BHD</option>
+          <option value="QAR">🇶🇦 QAR</option><option value="OMR">🇴🇲 OMR</option>
+          <option value="JOD">🇯🇴 JOD</option><option value="IQD">🇮🇶 IQD</option>
+          <option value="EGP">🇪🇬 EGP</option><option value="LYD">🇱🇾 LYD</option>
+          <option value="TND">🇹🇳 TND</option><option value="DZD">🇩🇿 DZD</option>
+          <option value="MAD">🇲🇦 MAD</option><option value="YER">🇾🇪 YER</option>
+          <option value="SYP">🇸🇾 SYP</option><option value="LBP">🇱🇧 LBP</option>
+          <option value="SDG">🇸🇩 SDG</option><option value="MRO">🇲🇷 MRO</option>
+          <option value="USD">🇺🇸 USD</option><option value="EUR">🇪🇺 EUR</option>
+          <option value="GBP">🇬🇧 GBP</option><option value="TRY">🇹🇷 TRY</option>
+          <option value="PKR">🇵🇰 PKR</option><option value="INR">🇮🇳 INR</option>
+          <option value="CNY">🇨🇳 CNY</option><option value="CAD">🇨🇦 CAD</option>
+          <option value="AUD">🇦🇺 AUD</option><option value="CHF">🇨🇭 CHF</option>
+        </select>
+      </div>
+      <div class="fg"><label>سعر الشراء / Buy (GBP)</label><input type="number" id="rBuy" placeholder="0.00000" step="0.00001"></div>
+      <div class="fg"><label>سعر البيع / Sell (GBP)</label><input type="number" id="rSell" placeholder="0.00000" step="0.00001"></div>
+      <div class="fg" style="display:flex;align-items:flex-end">
+        <button class="btn btn-gold" onclick="saveRate()" style="width:100%">حفظ / Save</button>
+      </div>
+    </div>
+  </div>
+  <div class="tc">
+    <div class="thead2"><div class="ttitle">📈 جدول الأسعار الحالية / Current Rate Board</div></div>
+    <div style="overflow-x:auto">
+      <table><thead><tr><th>العملة</th><th>الاسم</th><th>سعر الشراء</th><th>سعر البيع</th><th>الهامش %</th><th>آخر تحديث</th></tr></thead>
+      <tbody id="ratesBody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- ══ CUSTOMER STATEMENT MODAL ══ -->
+<div class="overlay" id="custModal">
+  <div class="modal" style="max-width:780px">
+    <div class="modal-title">
+      <span>👤 <span id="modalCustName"></span></span>
+      <button class="close-btn" onclick="closeModal('custModal')">✕</button>
+    </div>
+    <div class="stats-row" style="margin-bottom:16px">
+      <div class="sc green" style="padding:10px 14px"><div class="slabel">إجمالي المعاملات</div><div class="sval" id="mTotal" style="font-size:17px">0</div></div>
+      <div class="sc gold" style="padding:10px 14px"><div class="slabel">إجمالي الشراء GBP</div><div class="sval" id="mBought" style="font-size:17px">£0</div></div>
+      <div class="sc red" style="padding:10px 14px"><div class="slabel">إجمالي البيع GBP</div><div class="sval" id="mSold" style="font-size:17px">£0</div></div>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:14px">
+      <table><thead><tr><th>التاريخ</th><th>النوع</th><th>العملة</th><th>المبلغ</th><th>السعر</th><th>القيمة GBP</th><th>ملاحظات</th></tr></thead>
+      <tbody id="modalTxBody"></tbody></table>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gold" onclick="generatePDF()" style="font-size:13px">📄 تحميل PDF / Download PDF</button>
+      <button class="btn btn-wa" onclick="shareViaPDF()" style="font-size:13px">📲 مشاركة واتساب / Share via WhatsApp</button>
+      <button class="btn btn-out" onclick="closeModal('custModal')" style="font-size:13px">إغلاق / Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SETTLE MODAL ══ -->
+<div class="overlay" id="settleModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><span>✅ تسوية الدين / Settle Debt</span><button class="close-btn" onclick="closeModal('settleModal')">✕</button></div>
+    <div class="fg" style="margin-bottom:12px"><label>المبلغ المسدد GBP</label><input type="number" id="settleAmt" placeholder="0.00" step="0.01" style="width:100%;background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;outline:none"></div>
+    <div class="fg"><label>ملاحظات</label><input type="text" id="settleNotes" placeholder="تفاصيل التسوية..." style="width:100%;background:var(--dark3);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:8px;font-family:Cairo,sans-serif;font-size:13px;outline:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gold" onclick="confirmSettle()">✓ تأكيد / Confirm</button>
+      <button class="btn btn-out" onclick="closeModal('settleModal')">إلغاء / Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RECEIPT MODAL ══ -->
+<div class="overlay" id="rcptModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title"><span>🧾 إيصال / Receipt</span><button class="close-btn" onclick="closeModal('rcptModal')">✕</button></div>
+    <div id="rcptContent" style="background:var(--dark3);border:1px dashed var(--gold-dim);border-radius:10px;padding:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.9;white-space:pre-wrap;max-height:360px;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gold" onclick="rcptPDF()" style="font-size:12px">📄 PDF</button>
+      <button class="btn btn-wa" onclick="rcptWA()" style="font-size:12px">📲 واتساب</button>
+      <button class="btn btn-out" onclick="copyRcpt()" style="font-size:12px">📋 نسخ</button>
+      <button class="btn btn-out" onclick="closeModal('rcptModal')" style="font-size:12px">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let lang='ar';
+let TX = JSON.parse(localStorage.getItem('fx_tx')||'[]');
+let DEBTS = JSON.parse(localStorage.getItem('fx_debts')||'[]');
+let RATES = JSON.parse(localStorage.getItem('fx_rates')||'null') || defaultRates();
+let currentCustName='';
+let currentSettleId=null;
+let lastTx=null;
+
+function defaultRates(){
+  return {
+    SAR:{buy:.210,sell:.215,name:'Saudi Riyal - ريال سعودي',flag:'SA',updated:''},
+    AED:{buy:.215,sell:.220,name:'UAE Dirham - درهم إماراتي',flag:'AE',updated:''},
+    KWD:{buy:2.58,sell:2.62,name:'Kuwaiti Dinar - دينار كويتي',flag:'KW',updated:''},
+    BHD:{buy:2.10,sell:2.14,name:'Bahraini Dinar - دينار بحريني',flag:'BH',updated:''},
+    QAR:{buy:.217,sell:.222,name:'Qatari Riyal - ريال قطري',flag:'QA',updated:''},
+    OMR:{buy:2.05,sell:2.09,name:'Omani Rial - ريال عماني',flag:'OM',updated:''},
+    JOD:{buy:1.11,sell:1.14,name:'Jordanian Dinar - دينار أردني',flag:'JO',updated:''},
+    IQD:{buy:.00059,sell:.00062,name:'Iraqi Dinar - دينار عراقي',flag:'IQ',updated:''},
+    SYP:{buy:.000060,sell:.000065,name:'Syrian Pound - ليرة سورية',flag:'SY',updated:''},
+    LBP:{buy:.0000088,sell:.0000092,name:'Lebanese Pound - ليرة لبنانية',flag:'LB',updated:''},
+    EGP:{buy:.0159,sell:.0164,name:'Egyptian Pound - جنيه مصري',flag:'EG',updated:''},
+    LYD:{buy:.159,sell:.164,name:'Libyan Dinar - دينار ليبي',flag:'LY',updated:''},
+    TND:{buy:.250,sell:.256,name:'Tunisian Dinar - دينار تونسي',flag:'TN',updated:''},
+    DZD:{buy:.0058,sell:.0061,name:'Algerian Dinar - دينار جزائري',flag:'DZ',updated:''},
+    MAD:{buy:.078,sell:.081,name:'Moroccan Dirham - درهم مغربي',flag:'MA',updated:''},
+    MRO:{buy:.020,sell:.021,name:'Mauritanian Ouguiya - أوقية موريتانية',flag:'MR',updated:''},
+    SDG:{buy:.0013,sell:.0014,name:'Sudanese Pound - جنيه سوداني',flag:'SD',updated:''},
+    SOS:{buy:.0013,sell:.0014,name:'Somali Shilling - شلن صومالي',flag:'SO',updated:''},
+    DJF:{buy:.0044,sell:.0046,name:'Djiboutian Franc - فرنك جيبوتي',flag:'DJ',updated:''},
+    KMF:{buy:.0016,sell:.0017,name:'Comorian Franc - فرنك قمري',flag:'KM',updated:''},
+    YER:{buy:.0031,sell:.0033,name:'Yemeni Rial - ريال يمني',flag:'YE',updated:''},
+    PSP:{buy:.210,sell:.215,name:'Palestinian Shekel - شيكل فلسطيني',flag:'PS',updated:''},
+    GBP:{buy:1.000,sell:1.000,name:'British Pound - جنيه إسترليني',flag:'GB',updated:''},
+    USD:{buy:.788,sell:.805,name:'US Dollar - دولار أمريكي',flag:'US',updated:''},
+    EUR:{buy:.858,sell:.875,name:'Euro - يورو',flag:'EU',updated:''},
+    TRY:{buy:.0238,sell:.0248,name:'Turkish Lira - ليرة تركية',flag:'TR',updated:''},
+    PKR:{buy:.0028,sell:.00295,name:'Pakistani Rupee - روبية باكستانية',flag:'PK',updated:''},
+    INR:{buy:.0094,sell:.0097,name:'Indian Rupee - روبية هندية',flag:'IN',updated:''},
+    CNY:{buy:.107,sell:.110,name:'Chinese Yuan - يوان صيني',flag:'CN',updated:''},
+    CAD:{buy:.570,sell:.585,name:'Canadian Dollar - دولار كندي',flag:'CA',updated:''},
+    AUD:{buy:.498,sell:.510,name:'Australian Dollar - دولار أسترالي',flag:'AU',updated:''},
+    CHF:{buy:.878,sell:.895,name:'Swiss Franc - فرنك سويسري',flag:'CH',updated:''},
+  };
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+window.onload=()=>{
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('fDate').value=today;
+  document.getElementById('ddDate').value=today;
+  populateCurrencyFilter();
+  updateClock();
+  setInterval(updateClock,1000);
+  renderAll();
+};
+
+function updateClock(){
+  const n=new Date();
+  document.getElementById('hDate').textContent=n.toLocaleDateString('ar-GB',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+  document.getElementById('hTime').textContent=n.toLocaleTimeString('en-GB');
+}
+
+function populateCurrencyFilter(){
+  const s=document.getElementById('fc1');
+  Object.keys(RATES).forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o);});
+}
+
+function save(){
+  localStorage.setItem('fx_tx',JSON.stringify(TX));
+  localStorage.setItem('fx_debts',JSON.stringify(DEBTS));
+  localStorage.setItem('fx_rates',JSON.stringify(RATES));
+}
+
+function renderAll(){ renderTx();renderCustomers();renderBalance();renderDebts();renderRates();updateStats();updateCustDatalist(); }
+
+function showPage(p){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('tab-'+p).classList.add('active');
+}
+
+function toggleLang(){
+  lang=lang==='ar'?'en':'ar';
+  document.documentElement.lang=lang;
+  document.documentElement.dir=lang==='ar'?'rtl':'ltr';
+}
+
+// ══════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════
+function fmt(n){return (n||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function flagEmoji(code){
+  const flags={SA:'🇸🇦',AE:'🇦🇪',KW:'🇰🇼',BH:'🇧🇭',QA:'🇶🇦',OM:'🇴🇲',JO:'🇯🇴',IQ:'🇮🇶',SY:'🇸🇾',LB:'🇱🇧',EG:'🇪🇬',LY:'🇱🇾',TN:'🇹🇳',DZ:'🇩🇿',MA:'🇲🇦',MR:'🇲🇷',SD:'🇸🇩',SO:'🇸🇴',DJ:'🇩🇯',KM:'🇰🇲',YE:'🇾🇪',PS:'🇵🇸',GB:'🇬🇧',US:'🇺🇸',EU:'🇪🇺',TR:'🇹🇷',PK:'🇵🇰',IN:'🇮🇳',CN:'🇨🇳',CA:'🇨🇦',AU:'🇦🇺',CH:'🇨🇭'};
+  return flags[code]||'🏳️';
+}
+
+function updateCustDatalist(){
+  const names=[...new Set(TX.map(t=>t.customer).filter(Boolean))];
+  ['custList','custList2'].forEach(id=>{
+    const dl=document.getElementById(id);
+    if(dl){dl.innerHTML=names.map(n=>`<option value="${n}">`).join('');}
+  });
+}
+
+
+// ══════════════════════════════════════════
+//  ADD TRANSACTION
+// ══════════════════════════════════════════
+function addTx(){
+  const date=document.getElementById('fDate').value;
+  const type=document.getElementById('fType').value;
+  const currency=document.getElementById('fCur').value;
+  const amount=parseFloat(document.getElementById('fAmt').value);
+  const rate=parseFloat(document.getElementById('fRate').value);
+  const customer=document.getElementById('fCust').value.trim();
+  const phone=document.getElementById('fPhone').value.trim();
+  const notes=document.getElementById('fNotes').value.trim();
+  if(!date||!amount||!rate){alert('يرجى إدخال التاريخ والمبلغ والسعر\nPlease enter date, amount and rate');return;}
+  if(!customer){alert('يرجى إدخال اسم العميل\nPlease enter customer name');return;}
+  const tx={id:Date.now(),date,type,currency,amount,rate,gbp:+(amount*rate).toFixed(4),customer,phone,notes};
+  TX.unshift(tx);
+  lastTx=tx;
+  save();renderAll();
+  showReceipt(tx);
+  document.getElementById('fAmt').value='';
+  document.getElementById('fNotes').value='';
+}
+
+// ══════════════════════════════════════════
+//  RENDER TRANSACTIONS
+// ══════════════════════════════════════════
+function renderTx(){
+  const fd=document.getElementById('fd1').value;
+  const ft=document.getElementById('ft1').value;
+  const fc=document.getElementById('fc1').value;
+  const fk=document.getElementById('fk1').value.toLowerCase();
+  let f=TX.filter(t=>{
+    if(fd&&t.date!==fd)return false;
+    if(ft&&t.type!==ft)return false;
+    if(fc&&t.currency!==fc)return false;
+    if(fk&&!(t.customer||'').toLowerCase().includes(fk))return false;
+    return true;
+  });
+  const tb=document.getElementById('txBody'),em=document.getElementById('txEmpty');
+  if(!f.length){tb.innerHTML='';em.style.display='block';return;}
+  em.style.display='none';
+  tb.innerHTML=f.map(t=>`<tr>
+    <td class="mono">${t.date}</td>
+    <td><span class="badge ${t.type==='buy'?'bbuy':'bsell'}">${t.type==='buy'?'شراء':'بيع'}</span></td>
+    <td><strong>${flagEmoji(RATES[t.currency]?.flag||'')} ${t.currency}</strong></td>
+    <td class="mono">${fmt(t.amount)}</td>
+    <td class="mono">${t.rate.toFixed(5)}</td>
+    <td class="mono"><strong>£${fmt(t.gbp)}</strong></td>
+    <td>${t.customer||'—'}</td>
+    <td style="color:var(--text-dim);max-width:100px;overflow:hidden;text-overflow:ellipsis">${t.notes||'—'}</td>
+    <td style="display:flex;gap:4px">
+      <button class="btn-sm btn-view" onclick="showReceipt(TX.find(x=>x.id===${t.id}))">🧾</button>
+      ${t.phone?`<button class="btn-sm btn-wa" onclick="quickWA(${t.id})">📲</button>`:''}
+      <button class="btn-sm btn-del" onclick="delTx(${t.id})">✕</button>
+    </td>
+  </tr>`).join('');
+}
+
+function delTx(id){
+  if(!confirm('حذف هذه المعاملة؟\nDelete this transaction?'))return;
+  TX=TX.filter(t=>t.id!==id);save();renderAll();
+}
+function clearAll(){
+  if(!confirm('مسح جميع المعاملات؟\nClear all?'))return;
+  TX=[];save();renderAll();
+}
+
+// ══════════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════════
+function updateStats(){
+  let bought=0,sold=0;
+  TX.forEach(t=>{if(t.type==='buy')bought+=t.gbp;else sold+=t.gbp;});
+  let debt=0;
+  DEBTS.filter(d=>d.status!=='settled').forEach(d=>{if(d.dtype==='owed_to_me')debt+=d.amount;});
+  document.getElementById('s1').textContent=TX.length;
+  document.getElementById('s2').textContent='£'+fmt(bought);
+  document.getElementById('s3').textContent='£'+fmt(sold);
+  const p=sold-bought;
+  const el=document.getElementById('s4');
+  el.textContent='£'+fmt(p);el.className='sval '+(p>=0?'pos':'neg');
+  document.getElementById('s5').textContent='£'+fmt(debt);
+}
+
+// ══════════════════════════════════════════
+//  CUSTOMERS
+// ══════════════════════════════════════════
+function getCustomers(){
+  const map={};
+  TX.forEach(t=>{
+    if(!t.customer)return;
+    if(!map[t.customer])map[t.customer]={name:t.customer,phone:t.phone||'',txCount:0,bought:0,sold:0,lastDate:''};
+    map[t.customer].txCount++;
+    if(t.type==='buy')map[t.customer].bought+=t.gbp;
+    else map[t.customer].sold+=t.gbp;
+    if(t.date>map[t.customer].lastDate){map[t.customer].lastDate=t.date;if(t.phone)map[t.customer].phone=t.phone;}
+  });
+  return Object.values(map).sort((a,b)=>b.txCount-a.txCount);
+}
+
+function renderCustomers(){
+  const search=document.getElementById('custSearch').value.toLowerCase();
+  let custs=getCustomers().filter(c=>c.name.toLowerCase().includes(search));
+  document.getElementById('cTotal').textContent=getCustomers().length;
+  document.getElementById('cTx').textContent=TX.length;
+  const grid=document.getElementById('custGrid');
+  if(!custs.length){grid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div>👥</div>لا يوجد عملاء مطابقون</div>`;return;}
+  grid.innerHTML=custs.map(c=>{
+    const initials=c.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    return `<div class="cust-card" onclick="openCust('${encodeURIComponent(c.name)}')">
+      <div class="cust-avatar">${initials}</div>
+      <div class="cust-name">${c.name}</div>
+      <div class="cust-phone">${c.phone||'لا يوجد رقم'}</div>
+      <div class="cust-stats">
+        <div class="cust-stat"><span>المعاملات</span><strong>${c.txCount}</strong></div>
+        <div class="cust-stat"><span>شراء GBP</span><strong style="color:var(--green)">£${fmt(c.bought)}</strong></div>
+        <div class="cust-stat"><span>بيع GBP</span><strong style="color:var(--red)">£${fmt(c.sold)}</strong></div>
+      </div>
+      <div class="cust-actions" onclick="event.stopPropagation()">
+        <button class="btn-sm btn-pdf" onclick="openCustAndPDF('${encodeURIComponent(c.name)}')">📄 PDF كشف حساب</button>
+        ${c.phone?`<button class="btn-sm btn-wa" onclick="openCustAndWA('${encodeURIComponent(c.name)}')">📲 واتساب</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openCust(encodedName){
+  const name=decodeURIComponent(encodedName);
+  currentCustName=name;
+  const txs=TX.filter(t=>t.customer===name);
+  let bought=0,sold=0;
+  txs.forEach(t=>{if(t.type==='buy')bought+=t.gbp;else sold+=t.gbp;});
+  document.getElementById('modalCustName').textContent=name;
+  document.getElementById('mTotal').textContent=txs.length;
+  document.getElementById('mBought').textContent='£'+fmt(bought);
+  document.getElementById('mSold').textContent='£'+fmt(sold);
+  document.getElementById('modalTxBody').innerHTML=txs.map(t=>`<tr>
+    <td class="mono">${t.date}</td>
+    <td><span class="badge ${t.type==='buy'?'bbuy':'bsell'}">${t.type==='buy'?'شراء':'بيع'}</span></td>
+    <td><strong>${flagEmoji(RATES[t.currency]?.flag||'')} ${t.currency}</strong></td>
+    <td class="mono">${fmt(t.amount)}</td>
+    <td class="mono">${t.rate.toFixed(5)}</td>
+    <td class="mono"><strong>£${fmt(t.gbp)}</strong></td>
+    <td style="color:var(--text-dim);font-size:11px">${t.notes||'—'}</td>
+  </tr>`).join('');
+  document.getElementById('custModal').classList.add('open');
+}
+
+function openCustAndPDF(encodedName){openCust(encodedName);setTimeout(generatePDF,200);}
+
+function openCustAndWA(encodedName){
+  const name=decodeURIComponent(encodedName);
+  const c=getCustomers().find(x=>x.name===name);
+  if(!c||!c.phone){alert('لا يوجد رقم واتساب لهذا العميل');return;}
+  openCust(encodedName);
+  setTimeout(()=>{
+    generatePDF();
+    const msg=encodeURIComponent(`السلام عليكم ${name}،\nيرجى الاطلاع على كشف حسابك المرفق.\nدفتر الصرافة - Exchange Ledger`);
+    window.open(`https://wa.me/${c.phone.replace(/\D/g,'')}?text=${msg}`,'_blank');
+  },300);
+}
+
+// ══════════════════════════════════════════
+//  PDF GENERATION
+// ══════════════════════════════════════════
+function generatePDF(){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const name=currentCustName;
+  const txs=TX.filter(t=>t.customer===name);
+  const cust=getCustomers().find(c=>c.name===name)||{};
+  let bought=0,sold=0;
+  txs.forEach(t=>{if(t.type==='buy')bought+=t.gbp;else sold+=t.gbp;});
+
+  const W=210,margin=14;
+
+  // Header background
+  doc.setFillColor(14,14,14);
+  doc.rect(0,0,W,42,'F');
+
+  // Gold accent bar
+  doc.setFillColor(201,168,76);
+  doc.rect(0,0,W,4,'F');
+
+  // Title
+  doc.setTextColor(201,168,76);
+  doc.setFontSize(20);
+  doc.setFont('helvetica','bold');
+  doc.text('Exchange Ledger',margin,18);
+  doc.setFontSize(10);
+  doc.setTextColor(200,200,180);
+  doc.text('Customer Account Statement',margin,25);
+  doc.setFontSize(9);
+  doc.setTextColor(136,136,136);
+  doc.text(`Generated: ${new Date().toLocaleString('en-GB')}`,margin,32);
+  doc.text('JH Exchange | West Bromwich',W-margin,32,{align:'right'});
+
+  // Customer info box
+  doc.setFillColor(24,24,24);
+  doc.roundedRect(margin,48,W-margin*2,32,3,3,'F');
+  doc.setDrawColor(51,51,51);
+  doc.roundedRect(margin,48,W-margin*2,32,3,3,'S');
+
+  doc.setFontSize(14);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(240,208,128);
+  doc.text(name,margin+6,60);
+  doc.setFontSize(9);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(136,136,136);
+  if(cust.phone) doc.text(`WhatsApp: ${cust.phone}`,margin+6,68);
+  doc.text(`Last transaction: ${txs[0]?.date||'—'}`,margin+6,74);
+
+  // Summary boxes
+  const bx=margin,by=88,bw=(W-margin*2-8)/3,bh=22;
+  [[`${txs.length}`,'Total Transactions',[30,30,30]],[`GBP ${fmt(bought)}`,'Total Bought',[30,50,40]],[`GBP ${fmt(sold)}`,'Total Sold',[50,30,30]]].forEach(([val,label,rgb],i)=>{
+    const x=bx+i*(bw+4);
+    doc.setFillColor(...rgb);
+    doc.roundedRect(x,by,bw,bh,2,2,'F');
+    doc.setDrawColor(60,60,60);
+    doc.roundedRect(x,by,bw,bh,2,2,'S');
+    doc.setFontSize(13);doc.setFont('helvetica','bold');
+    doc.setTextColor(i===1?76:i===2?224:201,i===1?175:i===2?85:168,i===1?125:i===2?85:76);
+    doc.text(val,x+bw/2,by+12,{align:'center'});
+    doc.setFontSize(7);doc.setFont('helvetica','normal');doc.setTextColor(136,136,136);
+    doc.text(label,x+bw/2,by+19,{align:'center'});
+  });
+
+  // Table
+  doc.autoTable({
+    startY:118,
+    head:[['Date','Type','Currency','Amount','Rate (GBP)','Value (GBP)','Notes']],
+    body:txs.map(t=>[
+      t.date,
+      t.type==='buy'?'BUY':'SELL',
+      t.currency,
+      fmt(t.amount),
+      t.rate.toFixed(5),
+      'GBP '+fmt(t.gbp),
+      t.notes||''
+    ]),
+    styles:{font:'helvetica',fontSize:9,cellPadding:4,textColor:[220,210,190],fillColor:[24,24,24],lineColor:[51,51,51],lineWidth:.3},
+    headStyles:{fillColor:[40,35,20],textColor:[201,168,76],fontStyle:'bold',fontSize:8},
+    alternateRowStyles:{fillColor:[20,20,20]},
+    columnStyles:{
+      0:{cellWidth:22},1:{cellWidth:14,halign:'center'},2:{cellWidth:18,halign:'center'},
+      3:{cellWidth:26,halign:'right'},4:{cellWidth:24,halign:'right'},5:{cellWidth:28,halign:'right'},6:{cellWidth:40}
+    },
+    margin:{left:margin,right:margin},
+    didParseCell:(d)=>{
+      if(d.section==='body'&&d.column.index===1){
+        d.cell.styles.textColor=d.cell.raw==='BUY'?[76,175,125]:[224,85,85];
+      }
+    }
+  });
+
+  // Footer
+  const fY=doc.lastAutoTable.finalY+10;
+  doc.setFillColor(24,24,24);
+  doc.rect(margin,fY,W-margin*2,16,'F');
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(136,136,136);
+  doc.text('This is an official account statement from Exchange Ledger.',margin+4,fY+7);
+  doc.text(`Page 1 | Statement Date: ${new Date().toLocaleDateString('en-GB')}`,W-margin-4,fY+7,{align:'right'});
+  doc.setTextColor(201,168,76);
+  doc.text('JH Exchange | West Bromwich',margin+4,fY+13);
+
+  // Gold bottom bar
+  doc.setFillColor(201,168,76);
+  doc.rect(0,290,W,7,'F');
+
+  doc.save(`Statement_${name.replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+}
+
+function shareViaPDF(){
+  const c=getCustomers().find(x=>x.name===currentCustName);
+  generatePDF();
+  if(c&&c.phone){
+    const msg=encodeURIComponent(`السلام عليكم ${currentCustName}،\nمرفق كشف حسابك المحدث.\nExchange Ledger - دفتر الصرافة`);
+    setTimeout(()=>window.open(`https://wa.me/${c.phone.replace(/\D/g,'')}?text=${msg}`,'_blank'),600);
+  } else {
+    alert('تم تحميل الـ PDF. يمكنك مشاركته يدوياً عبر واتساب.\nPDF downloaded. Share it manually via WhatsApp.');
+  }
+}
+
+// ══════════════════════════════════════════
+//  RECEIPT
+// ══════════════════════════════════════════
+function showReceipt(tx){
+  if(!tx)return;
+  lastTx=tx;
+  const r=RATES[tx.currency]||{};
+  const flag=flagEmoji(r.flag||'');
+  const lines=[
+    `================================`,
+    `    دفتر الصرافة / Exchange Ledger`,
+    `================================`,
+    `Date / التاريخ  : ${tx.date}`,
+    `Time / الوقت    : ${new Date().toLocaleTimeString('en-GB')}`,
+    `--------------------------------`,
+    `Type / النوع    : ${tx.type==='buy'?'SELL (Bought from customer)':'BUY (Sold to customer)'}`,
+    `Curr / العملة   : ${flag} ${tx.currency}`,
+    `Amount / المبلغ : ${fmt(tx.amount)} ${tx.currency}`,
+    `Rate / السعر    : ${tx.rate.toFixed(5)} GBP`,
+    `Value / القيمة  : GBP £${fmt(tx.gbp)}`,
+    `--------------------------------`,
+    `Customer / العميل: ${tx.customer||'—'}`,
+    tx.notes?`Notes / ملاحظات : ${tx.notes}`:'',
+    `================================`,
+    `   شكراً / Thank You`,
+    `   JH Exchange | West Bromwich`,
+    `================================`,
+  ].filter(l=>l!=='').join('\n');
+  document.getElementById('rcptContent').textContent=lines;
+  document.getElementById('rcptModal').classList.add('open');
+}
+
+function rcptPDF(){
+  if(!lastTx)return;
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:[80,130]});
+  const tx=lastTx;
+  const r=RATES[tx.currency]||{};
+
+  doc.setFillColor(14,14,14);doc.rect(0,0,80,130,'F');
+  doc.setFillColor(201,168,76);doc.rect(0,0,80,3,'F');
+
+  doc.setTextColor(201,168,76);doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.text('Exchange Ledger',40,11,{align:'center'});
+  doc.setFontSize(7);doc.setTextColor(136,136,136);
+  doc.text('JH Exchange | West Bromwich',40,17,{align:'center'});
+
+  doc.setDrawColor(51,51,51);doc.line(5,21,75,21);
+
+  const rows=[
+    ['Date:',tx.date],['Type:',tx.type==='buy'?'SELL':'BUY'],
+    ['Currency:',tx.currency],['Amount:',`${fmt(tx.amount)} ${tx.currency}`],
+    ['Rate:',`${tx.rate.toFixed(5)}`],[`Value GBP:`,`£${fmt(tx.gbp)}`],
+    ['Customer:',tx.customer||'—'],
+  ];
+  if(tx.notes) rows.push(['Notes:',tx.notes]);
+
+  let y=28;
+  rows.forEach(([label,val])=>{
+    doc.setFontSize(7);doc.setFont('helvetica','bold');doc.setTextColor(136,136,136);
+    doc.text(label,6,y);
+    doc.setFont('helvetica','normal');doc.setTextColor(220,210,190);
+    doc.text(String(val),35,y);
+    y+=7;
+  });
+
+  doc.setDrawColor(51,51,51);doc.line(5,y,75,y);y+=6;
+  doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(201,168,76);
+  doc.text('Thank You / شكراً',40,y,{align:'center'});
+
+  doc.setFillColor(201,168,76);doc.rect(0,127,80,3,'F');
+  doc.save(`Receipt_${tx.customer||'tx'}_${tx.id}.pdf`);
+}
+
+function rcptWA(){
+  if(!lastTx)return;
+  const msg=encodeURIComponent(document.getElementById('rcptContent').textContent);
+  const phone=(lastTx.phone||'').replace(/\D/g,'');
+  window.open(`https://wa.me/${phone}?text=${msg}`,'_blank');
+}
+
+function copyRcpt(){
+  navigator.clipboard.writeText(document.getElementById('rcptContent').textContent)
+    .then(()=>alert('تم النسخ! / Copied!'));
+}
+
+function quickWA(id){
+  const tx=TX.find(t=>t.id===id);
+  if(!tx)return;
+  lastTx=tx;
+  showReceipt(tx);
+}
+
+// ══════════════════════════════════════════
+//  BALANCE
+// ══════════════════════════════════════════
+function renderBalance(){
+  const sum={};
+  TX.forEach(t=>{
+    if(!sum[t.currency])sum[t.currency]={bought:0,sold:0,boughtGBP:0,soldGBP:0};
+    if(t.type==='buy'){sum[t.currency].bought+=t.amount;sum[t.currency].boughtGBP+=t.gbp;}
+    else{sum[t.currency].sold+=t.amount;sum[t.currency].soldGBP+=t.gbp;}
+  });
+  const curs=Object.keys(sum);
+  document.getElementById('bCurr').textContent=curs.length;
+  let tp=0;curs.forEach(c=>tp+=sum[c].soldGBP-sum[c].boughtGBP);
+  const el=document.getElementById('bProfit');
+  el.textContent='£'+fmt(tp);el.className='sval '+(tp>=0?'pos':'neg');
+  if(!curs.length){document.getElementById('balGrid').innerHTML=`<div class="empty" style="grid-column:1/-1"><div>📊</div>أضف معاملات لرؤية الرصيد</div>`;return;}
+  document.getElementById('balGrid').innerHTML=curs.map(c=>{
+    const d=sum[c];const r=RATES[c]||{};
+    const net=d.bought-d.sold;const pnl=d.soldGBP-d.boughtGBP;
+    return `<div class="bal-card">
+      <div class="bal-flag">${flagEmoji(r.flag||'')}</div>
+      <div class="bal-name">${r.name||c}</div>
+      <div class="bal-code">${c}</div>
+      <div class="bal-row"><span style="color:var(--text-dim)">شراء / Bought</span><span class="mono pos">${fmt(d.bought)} ${c}</span></div>
+      <div class="bal-row"><span style="color:var(--text-dim)">بيع / Sold</span><span class="mono neg">${fmt(d.sold)} ${c}</span></div>
+      <div class="bal-row"><span style="color:var(--text-dim)">رأس المال GBP</span><span class="mono">£${fmt(d.boughtGBP)}</span></div>
+      <div class="bal-div"></div>
+      <div class="bal-net"><span style="color:var(--text-dim);font-size:11px">صافي الموضع</span><span class="mono ${net>=0?'pos':'neg'}">${net>=0?'+':''}${fmt(net)} ${c}</span></div>
+      <div class="bal-net" style="margin-top:4px"><span style="color:var(--text-dim);font-size:11px">ربح/خسارة GBP</span><span class="mono ${pnl>=0?'pos':'neg'}">£${fmt(pnl)}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  DEBTS
+// ══════════════════════════════════════════
+function addDebt(){
+  const cust=document.getElementById('ddCust').value.trim();
+  const amount=parseFloat(document.getElementById('ddAmt').value);
+  if(!cust||!amount){alert('أدخل الاسم والمبلغ / Enter name and amount');return;}
+  DEBTS.unshift({
+    id:Date.now(),date:document.getElementById('ddDate').value,customer:cust,
+    phone:document.getElementById('ddPhone').value.trim(),
+    dtype:document.getElementById('ddType').value,amount,
+    curNote:document.getElementById('ddCurNote').value.trim(),
+    notes:document.getElementById('ddNotes').value.trim(),
+    status:'open',settled:0
+  });
+  save();renderAll();
+  document.getElementById('ddCust').value='';document.getElementById('ddPhone').value='';
+  document.getElementById('ddAmt').value='';document.getElementById('ddCurNote').value='';document.getElementById('ddNotes').value='';
+}
+
+function renderDebts(){
+  const fil=document.getElementById('dfil').value;
+  const srch=document.getElementById('dsearch').value.toLowerCase();
+  let f=DEBTS.filter(d=>{
+    if(fil==='settled'&&d.status!=='settled')return false;
+    if(fil==='owed_to_me'&&d.dtype!=='owed_to_me')return false;
+    if(fil==='i_owe'&&d.dtype!=='i_owe')return false;
+    if(srch&&!d.customer.toLowerCase().includes(srch))return false;
+    return true;
+  });
+  let owedToMe=0,iOwe=0;
+  DEBTS.filter(d=>d.status!=='settled').forEach(d=>{if(d.dtype==='owed_to_me')owedToMe+=d.amount;else iOwe+=d.amount;});
+  document.getElementById('d1').textContent='£'+fmt(owedToMe);
+  document.getElementById('d2').textContent='£'+fmt(iOwe);
+  document.getElementById('d3').textContent=DEBTS.filter(d=>d.status!=='settled').length;
+  const tb=document.getElementById('debtBody'),em=document.getElementById('debtEmpty');
+  if(!f.length){tb.innerHTML='';em.style.display='block';return;}
+  em.style.display='none';
+  tb.innerHTML=f.map(d=>{
+    const remaining=d.amount-(d.settled||0);
+    const sb=d.status==='settled'?`<span class="badge bsettled">مسدد ✓</span>`:`<span class="badge bopen">${d.dtype==='owed_to_me'?'مستحق لي':'مستحق عليّ'}</span>`;
+    return `<tr>
+      <td class="mono">${d.date}</td>
+      <td><strong>${d.customer}</strong>${d.phone?`<br><span style="font-size:10px;color:var(--text-dim)">${d.phone}</span>`:''}</td>
+      <td>${d.dtype==='owed_to_me'?'يدين لي':'أدين له'}</td>
+      <td class="mono" style="color:${d.dtype==='owed_to_me'?'var(--orange)':'var(--red)'}">£${fmt(d.amount)}</td>
+      <td style="color:var(--text-dim);font-size:11px">${d.curNote||'—'}</td>
+      <td>${sb}${d.settled?`<br><span style="font-size:10px;color:var(--text-dim)">متبقي: £${fmt(remaining)}</span>`:''}</td>
+      <td style="color:var(--text-dim);font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis">${d.notes||'—'}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${d.status!=='settled'?`<button class="btn-sm btn-settle" onclick="openSettle(${d.id})">✓ تسوية</button>`:''}
+        ${d.phone?`<button class="btn-sm btn-wa" onclick="sendDebtWA(${d.id})">📲</button>`:''}
+        <button class="btn-sm btn-del" onclick="delDebt(${d.id})">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openSettle(id){
+  currentSettleId=id;
+  const d=DEBTS.find(x=>x.id===id);
+  document.getElementById('settleAmt').value=((d.amount-(d.settled||0)).toFixed(2));
+  document.getElementById('settleNotes').value='';
+  document.getElementById('settleModal').classList.add('open');
+}
+
+function confirmSettle(){
+  const d=DEBTS.find(x=>x.id===currentSettleId);if(!d)return;
+  const amt=parseFloat(document.getElementById('settleAmt').value)||0;
+  d.settled=(d.settled||0)+amt;
+  if(d.settled>=d.amount)d.status='settled';
+  save();renderAll();closeModal('settleModal');
+}
+
+function sendDebtWA(id){
+  const d=DEBTS.find(x=>x.id===id);if(!d)return;
+  const msg=encodeURIComponent(`دفتر الصرافة - تذكير بالدين\n${'━'.repeat(22)}\nالعميل: ${d.customer}\nالتاريخ: ${d.date}\nالمبلغ: £${fmt(d.amount)} GBP\n${d.curNote?`العملة: ${d.curNote}\n`:''}${d.notes?`ملاحظات: ${d.notes}\n`:''}الحالة: ${d.status==='settled'?'مسدد ✓':'معلق ⏳'}\n${'━'.repeat(22)}`);
+  window.open(`https://wa.me/${d.phone.replace(/\D/g,'')}?text=${msg}`,'_blank');
+}
+
+function delDebt(id){
+  if(!confirm('حذف هذا الدين؟'))return;
+  DEBTS=DEBTS.filter(x=>x.id!==id);save();renderAll();
+}
+
+// ══════════════════════════════════════════
+//  RATES
+// ══════════════════════════════════════════
+function saveRate(){
+  const cur=document.getElementById('rCur').value;
+  const buy=parseFloat(document.getElementById('rBuy').value);
+  const sell=parseFloat(document.getElementById('rSell').value);
+  if(!buy||!sell){alert('أدخل السعرين / Enter both rates');return;}
+  if(!RATES[cur])RATES[cur]={buy,sell,name:cur,flag:'',updated:''};
+  RATES[cur].buy=buy;RATES[cur].sell=sell;RATES[cur].updated=new Date().toLocaleString('en-GB');
+  save();renderRates();
+  document.getElementById('rBuy').value='';document.getElementById('rSell').value='';
+}
+
+function renderRates(){
+  document.getElementById('ratesBody').innerHTML=Object.entries(RATES).map(([code,r])=>{
+    const spread=r.buy&&r.sell?(((r.sell-r.buy)/r.buy)*100).toFixed(2):'—';
+    return `<tr>
+      <td><strong>${flagEmoji(r.flag||'')} ${code}</strong></td>
+      <td style="color:var(--text-dim);font-size:11px;max-width:150px">${r.name}</td>
+      <td class="mono pos">${r.buy.toFixed(5)}</td>
+      <td class="mono neg">${r.sell.toFixed(5)}</td>
+      <td class="mono" style="color:var(--gold)">${spread}%</td>
+      <td style="color:var(--text-dim);font-size:10px">${r.updated||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  CSV EXPORT
+// ══════════════════════════════════════════
+function exportCSV(){
+  const h=['Date','Type','Currency','Amount','Rate','GBP Value','Customer','Phone','Notes'];
+  const rows=TX.map(t=>[t.date,t.type,t.currency,t.amount,t.rate,t.gbp,t.customer,t.phone,t.notes]);
+  const csv=[h,...rows].map(r=>r.map(v=>`"${v||''}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download=`exchange-ledger-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
