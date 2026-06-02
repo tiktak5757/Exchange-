@@ -16,10 +16,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <!-- Firebase -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
+<!-- Firebase CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyAcDxHJ0js0qD9-vHP6aSXoiZ3QRoXXo90",
   authDomain: "daftar-haddad.firebaseapp.com",
@@ -28,37 +28,32 @@ const firebaseConfig = {
   messagingSenderId: "349919936356",
   appId: "1:349919936356:web:a8db3124383c3aa9390471"
 };
+firebase.initializeApp(firebaseConfig);
+const _db = firebase.firestore();
+const _docRef = _db.collection('ledger').doc('main');
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const DOCREF = doc(db, 'ledger', 'main');
-
-// Make db functions available globally
 window._fbSave = async function(data) {
   try {
-    await setDoc(DOCREF, data);
+    await _docRef.set(data);
   } catch(e) {
-    console.error('Save error:', e);
-    // fallback to localStorage
+    console.error('Firebase save error:', e);
     localStorage.setItem('daftar_db', JSON.stringify(data));
-    window._fbOffline = true;
   }
 };
 
 window._fbLoad = async function() {
   try {
-    const snap = await getDoc(DOCREF);
-    if (snap.exists()) return snap.data();
-    return null;
+    const snap = await _docRef.get();
+    return snap.exists ? snap.data() : null;
   } catch(e) {
-    console.error('Load error:', e);
+    console.error('Firebase load error:', e);
     return null;
   }
 };
 
 window._fbListen = function(callback) {
-  return onSnapshot(DOCREF, (snap) => {
-    if (snap.exists()) callback(snap.data());
+  return _docRef.onSnapshot(snap => {
+    if (snap.exists) callback(snap.data());
   });
 };
 
