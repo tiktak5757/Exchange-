@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>دفتر حسابات محمد محمود الحداد</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a7a4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="دفتر الحسابات">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- Firebase REST API - no SDK needed -->
+<script>
+const PROJECT_ID = 'daftar-haddad';
+const API_KEY = 'AIzaSyAcDxHJ0js0qD9-vHP6aSXoiZ3QRoXXo90';
+const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/ledger/main`;
+
+// Convert JS object to Firestore REST format
+function toFirestore(obj) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === 'string') fields[k] = { stringValue: v };
+    else if (typeof v === 'number') fields[k] = { doubleValue: v };
+    else if (typeof v === 'boolean') fields[k] = { booleanValue: v };
+    else fields[k] = { stringValue: JSON.stringify(v) };
+  }
+  return { fields };
+}
+
+// Convert Firestore REST format back to JS object
+function fromFirestore(fields) {
+  const obj = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v.stringValue !== undefined) {
+      try { obj[k] = JSON.parse(v.stringValue); } catch { obj[k] = v.stringValue; }
+    } else if (v.doubleValue !== undefined) obj[k] = v.doubleValue;
+    else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+  }
+  return obj;
+}
+
+window._fbSave = async function(data) {
+  try {
+    // Store whole DB as a single JSON string field - simplest approach
+    const body = {
+      fields: {
+        data: { stringValue: JSON.stringify(data) },
+        updated: { stringValue: new Date().toISOString() }
+      }
+    };
+    await fetch(`${BASE_URL}?key=${API_KEY}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch(e) {
+    console.error('Save error:', e);
+  }
+};
+
+window._fbLoad = async function() {
+  try {
+    const res = await fetch(`${BASE_URL}?key=${API_KEY}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.fields && json.fields.data) {
+      return JSON.parse(json.fields.data.stringValue);
+    }
+    return null;
+  } catch(e) {
+    console.error('Load error:', e);
+    return null;
+  }
+};
+
+// Poll for changes every 5 seconds (simple real-time)
+window._fbListen = function(callback) {
+  setInterval(async () => {
+    const data = await window._fbLoad();
+    if (data) callback(data);
+  }, 5000);
+};
+
+window._fbReady = true;
+</script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f2f2f2;
+  color: #111;
+  font-size: 18px;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  background: #1a7a4a;
+  color: #fff;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.header h1 { font-size: 26px; font-weight: 700; }
+.header-sub { font-size: 14px; opacity: .8; margin-top: 2px; }
+
+/* ── PAGES ── */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── HOME: NAMES LIST ── */
+.home-wrap { padding: 16px; max-width: 700px; margin: 0 auto; }
+
+.add-name-box {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.add-name-box h2 { font-size: 20px; margin-bottom: 14px; color: #1a7a4a; }
+.input-row { display: flex; gap: 10px; }
+.input-row input {
+  flex: 1;
+  padding: 14px 16px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 20px;
+  font-family: inherit;
+  outline: none;
+}
+.input-row input:focus { border-color: #1a7a4a; }
+.btn-add {
+  background: #1a7a4a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 22px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-add:active { opacity: .8; }
+
+.name-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  border-right: 6px solid #1a7a4a;
+  transition: box-shadow .2s;
+}
+.name-card:active { box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.name-info { flex: 1; }
+.name-text { font-size: 22px; font-weight: 700; }
+.name-balance { font-size: 17px; margin-top: 4px; }
+.bal-pos { color: #1a7a4a; }
+.bal-neg { color: #d32f2f; }
+.bal-zero { color: #888; }
+.name-arrow { font-size: 28px; color: #bbb; margin-right: 8px; }
+.name-del {
+  background: none;
+  border: none;
+  color: #d32f2f;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+.empty-msg {
+  text-align: center;
+  color: #aaa;
+  font-size: 20px;
+  padding: 50px 20px;
+}
+
+/* ── LEDGER PAGE ── */
+.ledger-header {
+  background: #1a7a4a;
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.back-btn {
+  background: rgba(255,255,255,.2);
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.ledger-title { font-size: 22px; font-weight: 700; flex: 1; }
+.ledger-bal-header { font-size: 18px; font-weight: 700; }
+
+.ledger-wrap { max-width: 700px; margin: 0 auto; padding: 16px; }
+
+/* SUMMARY BAR */
+.summary-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sum-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,.07);
+}
+.sum-label { font-size: 13px; color: #888; margin-bottom: 4px; }
+.sum-val { font-size: 22px; font-weight: 700; }
+.sum-green { color: #1a7a4a; }
+.sum-red { color: #d32f2f; }
+.sum-blue { color: #1565c0; }
+
+/* ADD ENTRY FORM */
+.entry-form {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+}
+.entry-form h3 { font-size: 20px; color: #1a7a4a; margin-bottom: 14px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.form-group label {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 19px;
+  font-family: inherit;
+  outline: none;
+  background: #fafafa;
+}
+.form-group input:focus,
+.form-group select:focus { border-color: #1a7a4a; }
+.form-group.full { grid-column: 1 / -1; }
+
+.type-toggle { display: flex; gap: 0; border-radius: 10px; overflow: hidden; border: 2px solid #ddd; margin-bottom: 14px; }
+.type-btn {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  background: #f5f5f5;
+  color: #888;
+  transition: all .2s;
+}
+.type-btn.credit.active { background: #1a7a4a; color: #fff; }
+.type-btn.debit.active { background: #d32f2f; color: #fff; }
+
+.btn-save {
+  width: 100%;
+  background: #1a7a4a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 16px;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+  font-family: inherit;
+}
+.btn-save:active { opacity: .85; }
+
+/* TRANSACTIONS LIST */
+.tx-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.tx-list-title { font-size: 20px; font-weight: 700; color: #333; }
+.btn-pdf {
+  background: #1565c0;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-pdf:active { opacity: .85; }
+
+.tx-row {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 5px solid #ddd;
+}
+.tx-row.credit { border-right-color: #1a7a4a; }
+.tx-row.debit  { border-right-color: #d32f2f; }
+.tx-info { flex: 1; }
+.tx-type-label { font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 3px; }
+.tx-row.credit .tx-type-label { color: #1a7a4a; }
+.tx-row.debit  .tx-type-label { color: #d32f2f; }
+.tx-note { font-size: 17px; color: #333; margin-bottom: 3px; }
+.tx-date { font-size: 13px; color: #aaa; }
+.tx-amount { font-size: 24px; font-weight: 700; margin-left: 10px; }
+.tx-row.credit .tx-amount { color: #1a7a4a; }
+.tx-row.debit  .tx-amount { color: #d32f2f; }
+.tx-del {
+  background: none; border: none; color: #ccc;
+  font-size: 20px; cursor: pointer; padding: 4px 6px;
+}
+.tx-del:active { color: #d32f2f; }
+.tx-edit {
+  background: none; border: none;
+  font-size: 18px; cursor: pointer; padding: 4px 6px;
+}
+.tx-edit:active { opacity: .6; }
+
+/* CALCULATOR */
+.calc-btn {
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 16px 8px;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  color: #111;
+}
+.calc-btn:active { background: #e8f5ee; border-color: #1a7a4a; }
+.calc-op { background: #f0f0f0; color: #1a7a4a; }
+.edit-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.65); z-index: 300;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.edit-overlay.open { display: flex; }
+.edit-modal {
+  background: #fff; border-radius: 16px; padding: 26px;
+  width: 100%; max-width: 480px; box-shadow: 0 8px 30px rgba(0,0,0,.25);
+}
+.edit-modal h3 { font-size: 22px; color: #1a7a4a; margin-bottom: 18px; font-weight: 700; }
+.edit-field { margin-bottom: 14px; }
+.edit-field label { display: block; font-size: 14px; color: #666; font-weight: 600; margin-bottom: 5px; }
+.edit-field input, .edit-field select {
+  width: 100%; padding: 13px 14px; border: 2px solid #ddd;
+  border-radius: 10px; font-size: 19px; font-family: inherit; outline: none;
+}
+.edit-field input:focus, .edit-field select:focus { border-color: #1a7a4a; }
+.edit-btns { display: flex; gap: 10px; margin-top: 18px; }
+.btn-save-edit {
+  flex: 1; background: #1a7a4a; color: #fff; border: none;
+  border-radius: 10px; padding: 15px; font-size: 20px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.btn-cancel-edit {
+  background: #eee; color: #555; border: none;
+  border-radius: 10px; padding: 15px 20px; font-size: 18px;
+  cursor: pointer; font-family: inherit;
+}
+
+.running-bal {
+  font-size: 13px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.no-tx { text-align: center; color: #bbb; font-size: 19px; padding: 40px 0; }
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 14px 28px;
+  border-radius: 30px;
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity .3s;
+  z-index: 999;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+/* BIN */
+.bin-row {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 5px rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-right: 5px solid #aaa;
+  opacity: .85;
+}
+.bin-info { flex: 1; }
+.bin-who { font-size: 13px; color: #888; margin-bottom: 3px; font-weight: 600; }
+.bin-type { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.bin-type.credit { color: #1a7a4a; }
+.bin-type.debit  { color: #d32f2f; }
+.bin-note { font-size: 16px; color: #444; }
+.bin-date { font-size: 12px; color: #bbb; margin-top: 2px; }
+.bin-amount { font-size: 22px; font-weight: 700; color: #555; margin: 0 12px; }
+.bin-actions { display: flex; gap: 8px; }
+.btn-restore {
+  background: #1a7a4a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-perm-del {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.bin-wrap { padding: 16px; max-width: 700px; margin: 0 auto; }
+.bin-header-bar {
+  background: #555;
+  color: #fff;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.bin-empty { text-align:center; color:#bbb; font-size:19px; padding:50px 20px; }
+.btn-clear-bin {
+  background: #d32f2f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 14px;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ══ PASSWORD SCREEN ══ -->
+<div id="lockScreen" style="position:fixed;inset:0;background:#1a7a4a;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px">
+  <div style="font-size:36px;font-weight:900;color:#fff;text-align:center;margin-bottom:6px">دفتر حسابات</div>
+  <div style="font-size:16px;color:rgba(255,255,255,.7);margin-bottom:40px">Mohammed Mahmoud Al-Haddad</div>
+  <div style="background:#fff;border-radius:20px;padding:30px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <div style="font-size:22px;font-weight:700;color:#1a7a4a;text-align:center;margin-bottom:6px">🔒 Enter Password</div>
+    <div style="font-size:14px;color:#aaa;text-align:center;margin-bottom:24px">أدخل كلمة المرور</div>
+    <input type="password" id="pwInput" placeholder="Password"
+      style="width:100%;padding:16px;border:2px solid #ddd;border-radius:12px;font-size:24px;text-align:center;font-family:inherit;outline:none;letter-spacing:4px;margin-bottom:14px"
+      onkeydown="if(event.key==='Enter')checkPassword()">
+    <div id="pwError" style="color:#d32f2f;text-align:center;font-size:15px;font-weight:600;margin-bottom:10px;display:none">❌ Wrong password. Try again.</div>
+    <button onclick="checkPassword()"
+      style="width:100%;background:#1a7a4a;color:#fff;border:none;border-radius:12px;padding:16px;font-size:22px;font-weight:700;cursor:pointer;font-family:inherit">
+      Unlock 🔓
+    </button>
+  </div>
+</div>
+<div class="page active" id="page-home">
+  <div class="header">
+    <div>
+      <div style="font-size:32px;font-weight:900;letter-spacing:1px">دفتر حسابات محمد محمود الحداد</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div id="syncStatus" style="font-size:13px;color:#fff;opacity:.8">🔄 Connecting...</div>
+      <div id="totalSummary" style="text-align:left;font-size:15px;opacity:.9"></div>
+      <button onclick="openBin()" style="background:rgba(255,255,255,.2);border:none;color:#fff;font-size:22px;border-radius:8px;padding:8px 14px;cursor:pointer;" title="Recycle Bin">🗑️</button>
+    </div>
+  </div>
+
+  <div class="home-wrap">
+    <div class="add-name-box">
+      <h2>➕ إضافة اسم جديد / Add New Name</h2>
+      <div class="input-row">
+        <input type="text" id="newName" placeholder="اكتب الاسم هنا..." onkeydown="if(event.key==='Enter')addName()">
+        <button class="btn-add" onclick="addName()">إضافة</button>
+      </div>
+    </div>
+    <div id="namesList"></div>
+
+    <div style="margin-top:24px">
+      <button onclick="openBin()" style="width:100%;background:#c0392b;color:#fff;border:none;border-radius:14px;padding:20px;font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;font-family:inherit;box-shadow:0 4px 12px rgba(192,57,43,.3)">
+        🗑️ Recycle Bin — سلة المحذوفات
+        <span id="binBadge" style="background:#fff;color:#c0392b;border-radius:20px;padding:3px 14px;font-size:18px;font-weight:900"></span>
+      </button>
+    </div>
+  </div>
+</div>
+<div class="page" id="page-bin">
+  <div class="bin-header-bar">
+    <button class="back-btn" onclick="closeBin()">▶ رجوع</button>
+    <div style="font-size:22px;font-weight:700;flex:1">🗑️ سلة المحذوفات / Recycle Bin</div>
+    <div id="binCount" style="font-size:14px;opacity:.8"></div>
+  </div>
+  <div class="bin-wrap">
+    <button class="btn-clear-bin" onclick="emptyBin()">🗑️ إفراغ الكل / Empty Bin</button>
+    <div id="binList"></div>
+  </div>
+</div>
+
+<!-- ══ LEDGER PAGE ══ -->
+<div class="page" id="page-ledger">
+  <div class="ledger-header">
+    <button class="back-btn" onclick="goHome()">▶ رجوع</button>
+    <div class="ledger-title" id="ledgerName"></div>
+    <div class="ledger-bal-header" id="ledgerBalHeader"></div>
+    <div id="ledgerEntryBtns" style="display:flex;gap:8px;margin-right:4px"></div>
+  </div>
+
+  <div class="ledger-wrap">
+    <div class="summary-bar">
+      <div class="sum-box">
+        <div class="sum-label">إجمالي دائن / Credit</div>
+        <div class="sum-val sum-green" id="sumCredit">£0.00</div>
+      </div>
+      <div class="sum-box">
+        <div class="sum-label">إجمالي مدين / Debit</div>
+        <div class="sum-val sum-red" id="sumDebit">£0.00</div>
+      </div>
+      <div class="sum-box">
+        <div class="sum-label">الرصيد / Balance</div>
+        <div class="sum-val sum-blue" id="sumBalance">£0.00</div>
+      </div>
+    </div>
+
+    <div class="entry-form">
+      <h3>➕ إدخال جديد / New Entry</h3>
+      <div class="type-toggle">
+        <button class="type-btn credit active" id="btnCredit" onclick="setType('credit')">
+          دائن ▲ Credit
+        </button>
+        <button class="type-btn debit" id="btnDebit" onclick="setType('debit')">
+          مدين ▼ Debit
+        </button>
+      </div>
+
+      <!-- ORIGINAL CURRENCY ROW -->
+      <div style="background:#f0f8f4;border:2px solid #1a7a4a;border-radius:10px;padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:#1a7a4a;margin-bottom:8px">💱 Original Currency Received</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount (Foreign)</label>
+            <input type="number" id="eFxAmount" placeholder="e.g. 3000" step="0.01" min="0">
+          </div>
+          <div class="form-group">
+            <label>Currency</label>
+            <select id="eFxCur">
+              <option value="">— None —</option>
+              <option value="SAR">🇸🇦 SAR – Saudi Riyal</option>
+              <option value="AED">🇦🇪 AED – UAE Dirham</option>
+              <option value="USD">🇺🇸 USD – US Dollar</option>
+              <option value="EUR">🇪🇺 EUR – Euro</option>
+              <option value="KWD">🇰🇼 KWD – Kuwaiti Dinar</option>
+              <option value="QAR">🇶🇦 QAR – Qatari Riyal</option>
+              <option value="BHD">🇧🇭 BHD – Bahraini Dinar</option>
+              <option value="OMR">🇴🇲 OMR – Omani Rial</option>
+              <option value="JOD">🇯🇴 JOD – Jordanian Dinar</option>
+              <option value="EGP">🇪🇬 EGP – Egyptian Pound</option>
+              <option value="MAD">🇲🇦 MAD – Moroccan Dirham</option>
+              <option value="TND">🇹🇳 TND – Tunisian Dinar</option>
+              <option value="DZD">🇩🇿 DZD – Algerian Dinar</option>
+              <option value="LYD">🇱🇾 LYD – Libyan Dinar</option>
+              <option value="IQD">🇮🇶 IQD – Iraqi Dinar</option>
+              <option value="SYP">🇸🇾 SYP – Syrian Pound</option>
+              <option value="TRY">🇹🇷 TRY – Turkish Lira</option>
+              <option value="PKR">🇵🇰 PKR – Pakistani Rupee</option>
+              <option value="INR">🇮🇳 INR – Indian Rupee</option>
+              <option value="YER">🇾🇪 YER – Yemeni Rial</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- GBP CHARGE ROW -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>GBP Charged (£) *</label>
+          <div style="display:flex;gap:8px">
+            <input type="number" id="eAmount" placeholder="0.00" step="0.01" min="0" style="flex:1">
+            <button type="button" onclick="openCalc('eAmount')" style="background:#1a7a4a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:22px;cursor:pointer">🧮</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>التاريخ / Date</label>
+          <input type="date" id="eDate">
+        </div>
+      </div>
+      <div class="form-group full" style="margin-bottom:10px">
+        <label>ملاحظات / Notes</label>
+        <input type="text" id="eNote" placeholder="Optional notes..." onkeydown="if(event.key==='Enter')saveEntry()">
+      </div>
+      <button class="btn-save" onclick="saveEntry()">✓ حفظ / Save</button>
+    </div>
+
+    <div class="tx-list-header">
+      <div class="tx-list-title">📋 السجل / Ledger</div>
+      <button class="btn-pdf" onclick="exportPDF()">📄 PDF</button>
+    </div>
+    <div id="txList"></div>
+  </div>
+</div>
+
+<!-- ══ EDIT MODAL ══ -->
+<div class="edit-overlay" id="editOverlay">
+  <div class="edit-modal">
+    <h3>✏️ Edit Entry</h3>
+    <div class="edit-field">
+      <label>Type</label>
+      <select id="editType">
+        <option value="credit">▲ CREDIT (in)</option>
+        <option value="debit">▼ DEBIT (out)</option>
+      </select>
+    </div>
+    <div class="edit-field">
+      <label>GBP Amount (£) *</label>
+      <div style="display:flex;gap:8px">
+        <input type="number" id="editAmount" placeholder="0.00" step="0.01" min="0" style="flex:1">
+        <button type="button" onclick="openCalc('editAmount')" style="background:#1a7a4a;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:22px;cursor:pointer">🧮</button>
+      </div>
+    </div>
+    <div class="edit-field">
+      <label>Original Amount Sent (Foreign)</label>
+      <input type="number" id="editFxAmount" placeholder="e.g. 3000" step="0.01" min="0">
+    </div>
+    <div class="edit-field">
+      <label>Foreign Currency</label>
+      <select id="editFxCur">
+        <option value="">— None —</option>
+        <option value="SAR">🇸🇦 SAR – Saudi Riyal</option>
+        <option value="AED">🇦🇪 AED – UAE Dirham</option>
+        <option value="USD">🇺🇸 USD – US Dollar</option>
+        <option value="EUR">🇪🇺 EUR – Euro</option>
+        <option value="KWD">🇰🇼 KWD – Kuwaiti Dinar</option>
+        <option value="QAR">🇶🇦 QAR – Qatari Riyal</option>
+        <option value="BHD">🇧🇭 BHD – Bahraini Dinar</option>
+        <option value="OMR">🇴🇲 OMR – Omani Rial</option>
+        <option value="JOD">🇯🇴 JOD – Jordanian Dinar</option>
+        <option value="EGP">🇪🇬 EGP – Egyptian Pound</option>
+        <option value="MAD">🇲🇦 MAD – Moroccan Dirham</option>
+        <option value="TND">🇹🇳 TND – Tunisian Dinar</option>
+        <option value="DZD">🇩🇿 DZD – Algerian Dinar</option>
+        <option value="LYD">🇱🇾 LYD – Libyan Dinar</option>
+        <option value="IQD">🇮🇶 IQD – Iraqi Dinar</option>
+        <option value="SYP">🇸🇾 SYP – Syrian Pound</option>
+        <option value="TRY">🇹🇷 TRY – Turkish Lira</option>
+        <option value="PKR">🇵🇰 PKR – Pakistani Rupee</option>
+        <option value="INR">🇮🇳 INR – Indian Rupee</option>
+        <option value="YER">🇾🇪 YER – Yemeni Rial</option>
+      </select>
+    </div>
+    <div class="edit-field">
+      <label>Date</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="edit-field">
+      <label>Notes</label>
+      <input type="text" id="editNote" placeholder="Optional...">
+    </div>
+    <div class="edit-btns">
+      <button class="btn-save-edit" onclick="saveEdit()">✓ Save Changes</button>
+      <button class="btn-cancel-edit" onclick="closeEdit()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CALCULATOR MODAL ══ -->
+<div class="edit-overlay" id="calcOverlay">
+  <div class="edit-modal" style="max-width:340px">
+    <h3>🧮 Calculator</h3>
+    <div id="calcDisplay" style="background:#f5f5f5;border:2px solid #ddd;border-radius:10px;padding:14px 16px;font-size:28px;font-weight:700;text-align:right;margin-bottom:14px;min-height:58px;font-family:'Courier New',monospace;color:#111;word-break:break-all">0</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      <button class="calc-btn calc-op" onclick="calcInput('C')" style="grid-column:span 2;background:#e74c3c">C</button>
+      <button class="calc-btn calc-op" onclick="calcInput('⌫')">⌫</button>
+      <button class="calc-btn calc-op" onclick="calcInput('/')">÷</button>
+      <button class="calc-btn" onclick="calcInput('7')">7</button>
+      <button class="calc-btn" onclick="calcInput('8')">8</button>
+      <button class="calc-btn" onclick="calcInput('9')">9</button>
+      <button class="calc-btn calc-op" onclick="calcInput('*')">×</button>
+      <button class="calc-btn" onclick="calcInput('4')">4</button>
+      <button class="calc-btn" onclick="calcInput('5')">5</button>
+      <button class="calc-btn" onclick="calcInput('6')">6</button>
+      <button class="calc-btn calc-op" onclick="calcInput('-')">−</button>
+      <button class="calc-btn" onclick="calcInput('1')">1</button>
+      <button class="calc-btn" onclick="calcInput('2')">2</button>
+      <button class="calc-btn" onclick="calcInput('3')">3</button>
+      <button class="calc-btn calc-op" onclick="calcInput('+')">+</button>
+      <button class="calc-btn" onclick="calcInput('0')" style="grid-column:span 2">0</button>
+      <button class="calc-btn" onclick="calcInput('.')">.</button>
+      <button class="calc-btn" onclick="calcInput('=')" style="background:#1a7a4a;color:#fff">=</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="calcUse()" style="flex:1;background:#1a7a4a;color:#fff;border:none;border-radius:10px;padding:14px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit">✓ Use this amount</button>
+      <button onclick="closeModal('calcOverlay')" style="background:#eee;color:#555;border:none;border-radius:10px;padding:14px 18px;font-size:16px;cursor:pointer;font-family:inherit">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+//  PWA SERVICE WORKER
+// ══════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+
+// ══════════════════════════════════════
+//  PASSWORD
+// ══════════════════════════════════════
+function checkPassword() {
+  const input = document.getElementById('pwInput').value;
+  if (input === 'MO2026') {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('pwInput').value = '';
+  } else {
+    document.getElementById('pwError').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+    setTimeout(() => document.getElementById('pwError').style.display = 'none', 3000);
+  }
+}
+
+
+let DB = { names: [], entries: {}, bin: [] };
+let _saving = false;
+
+async function save() {
+  // Always save to localStorage as instant backup
+  localStorage.setItem('daftar_db', JSON.stringify(DB));
+  // Save to Firebase cloud
+  if (window._fbSave) {
+    _saving = true;
+    await window._fbSave(JSON.parse(JSON.stringify(DB)));
+    _saving = false;
+  }
+}
+
+// ══════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════
+window.onload = () => {
+  document.getElementById('eDate').value = today();
+  document.getElementById('ddDate').value = today();
+
+  // Load localStorage instantly while Firebase connects
+  const local = localStorage.getItem('daftar_db');
+  if (local) {
+    try { DB = JSON.parse(local); if (!DB.bin) DB.bin = []; renderAll(); } catch(e) {}
+  }
+
+  // Keep trying to connect every second until Firebase is ready
+  let attempts = 0;
+  const tryConnect = () => {
+    attempts++;
+    if (window._fbLoad && window._fbListen) {
+      window._fbLoad().then(data => {
+        if (data) {
+          DB = data;
+          if (!DB.bin) DB.bin = [];
+          if (!DB.names) DB.names = [];
+          if (!DB.entries) DB.entries = {};
+          localStorage.setItem('daftar_db', JSON.stringify(DB));
+          renderAll();
+        }
+        showSyncStatus('🟢 Connected');
+      }).catch(e => {
+        showSyncStatus('🔴 Offline');
+        console.error(e);
+      });
+
+      // Real-time listener
+      window._fbListen((data) => {
+        if (_saving) return;
+        DB = data;
+        if (!DB.bin) DB.bin = [];
+        if (!DB.names) DB.names = [];
+        if (!DB.entries) DB.entries = {};
+        localStorage.setItem('daftar_db', JSON.stringify(DB));
+        renderAll();
+        showSyncStatus('🟢 Live');
+      });
+    } else if (attempts < 20) {
+      // Retry every 500ms up to 10 seconds
+      setTimeout(tryConnect, 500);
+    } else {
+      showSyncStatus('🔴 Offline — data saved locally');
+    }
+  };
+
+  setTimeout(tryConnect, 500);
+  updateClock();
+  setInterval(updateClock, 1000);
+};
+
+function showSyncStatus(msg) {
+  const el = document.getElementById('syncStatus');
+  if (el) { el.textContent = msg; }
+}
+
+
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+function fmt(n) {
+  return '£' + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ══════════════════════════════════════
+//  HOME
+// ══════════════════════════════════════
+function renderHome() {
+  const list = document.getElementById('namesList');
+  const badge = document.getElementById('binBadge');
+  if (badge) badge.textContent = DB.bin.length ? `${DB.bin.length} items` : '';
+
+  if (!DB.names.length) {
+    list.innerHTML = '<div class="empty-msg">لا يوجد أسماء بعد<br>No names yet</div>';
+    document.getElementById('totalSummary').innerHTML = '';
+    return;
+  }
+
+  let totalCredit = 0, totalDebit = 0;
+  DB.names.forEach(name => {
+    const entries = DB.entries[name] || [];
+    entries.forEach(e => {
+      if (e.type === 'credit') totalCredit += e.amount;
+      else totalDebit += e.amount;
+    });
+  });
+  const net = totalCredit - totalDebit;
+  document.getElementById('totalSummary').innerHTML =
+    `<div>إجمالي: ${fmt(totalCredit)} دائن</div>
+     <div>${fmt(totalDebit)} مدين</div>
+     <div style="font-weight:700">${net >= 0 ? '+' : '-'}${fmt(net)}</div>`;
+
+  list.innerHTML = DB.names.map(name => {
+    const entries = DB.entries[name] || [];
+    let credit = 0, debit = 0;
+    entries.forEach(e => { if (e.type === 'credit') credit += e.amount; else debit += e.amount; });
+    const bal = credit - debit;
+    const balClass = bal > 0 ? 'bal-pos' : bal < 0 ? 'bal-neg' : 'bal-zero';
+    const balText = bal > 0 ? `له ${fmt(bal)}` : bal < 0 ? `عليه ${fmt(bal)}` : 'متسوي £0.00';
+    return `
+      <div class="name-card" onclick="openLedger('${encodeURIComponent(name)}')">
+        <div class="name-arrow">◀</div>
+        <div class="name-info">
+          <div class="name-text">${name}</div>
+          <div class="name-balance ${balClass}">${balText} · ${entries.length} معاملة</div>
+        </div>
+        <button class="name-del" onclick="event.stopPropagation();deleteName('${encodeURIComponent(name)}')">🗑</button>
+      </div>`;
+  }).join('');
+}
+
+function addName() {
+  const input = document.getElementById('newName');
+  const name = input.value.trim();
+  if (!name) { toast('أدخل اسماً / Enter a name'); return; }
+  if (DB.names.includes(name)) { toast('الاسم موجود مسبقاً / Name already exists'); return; }
+  DB.names.push(name);
+  if (!DB.entries[name]) DB.entries[name] = [];
+  save();
+  input.value = '';
+  renderHome();
+  toast('✓ تم إضافة ' + name);
+}
+
+function deleteName(encoded) {
+  const name = decodeURIComponent(encoded);
+  if (!confirm(`حذف "${name}" وكل معاملاته؟\nDelete "${name}" and all entries?`)) return;
+  // Move all entries to bin
+  const entries = DB.entries[name] || [];
+  entries.forEach(e => {
+    DB.bin.unshift({ ...e, _who: name, _deletedAt: new Date().toLocaleString('en-GB') });
+  });
+  DB.names = DB.names.filter(n => n !== name);
+  delete DB.entries[name];
+  save();
+  renderHome();
+  toast('Moved to bin 🗑️');
+}
+
+// ══════════════════════════════════════
+//  LEDGER
+// ══════════════════════════════════════
+let currentName = '';
+let entryType = 'credit';
+
+function openLedger(encoded) {
+  currentName = decodeURIComponent(encoded);
+  entryType = 'credit';
+  setType('credit');
+  document.getElementById('eAmount').value = '';
+  document.getElementById('eNote').value = '';
+  document.getElementById('eDate').value = today();
+  document.getElementById('ledgerName').textContent = currentName;
+  document.getElementById('page-home').classList.remove('active');
+  document.getElementById('page-ledger').classList.add('active');
+  renderLedger();
+}
+
+function goHome() {
+  document.getElementById('page-ledger').classList.remove('active');
+  document.getElementById('page-home').classList.add('active');
+  renderHome();
+}
+
+function setType(type) {
+  entryType = type;
+  document.getElementById('btnCredit').classList.toggle('active', type === 'credit');
+  document.getElementById('btnDebit').classList.toggle('active', type === 'debit');
+}
+
+function saveEntry() {
+  const amount = parseFloat(document.getElementById('eAmount').value);
+  const note = document.getElementById('eNote').value.trim();
+  const date = document.getElementById('eDate').value || today();
+
+  if (!amount || amount <= 0) { toast('أدخل مبلغاً صحيحاً / Enter a valid amount'); return; }
+
+  const entry = {
+    id: Date.now(),
+    type: entryType,
+    amount: amount,
+    note: note,
+    date: date,
+    fxAmount: parseFloat(document.getElementById('eFxAmount').value) || 0,
+    fxCur: document.getElementById('eFxCur').value || ''
+  };
+
+  if (!DB.entries[currentName]) DB.entries[currentName] = [];
+  DB.entries[currentName].unshift(entry);
+  save(); // AUTO-SAVE immediately
+
+  document.getElementById('eAmount').value = '';
+  document.getElementById('eNote').value = '';
+  document.getElementById('eDate').value = today();
+  document.getElementById('eFxAmount').value = '';
+  document.getElementById('eFxCur').value = '';
+
+  renderLedger();
+  toast(entryType === 'credit' ? '✓ دائن محفوظ' : '✓ مدين محفوظ');
+}
+
+function deleteEntry(id) {
+  const entry = (DB.entries[currentName] || []).find(e => e.id === id);
+  if (!entry) return;
+  // Move to bin
+  DB.bin.unshift({ ...entry, _who: currentName, _deletedAt: new Date().toLocaleString('en-GB') });
+  DB.entries[currentName] = DB.entries[currentName].filter(e => e.id !== id);
+  save();
+  renderLedger();
+  toast('Moved to bin 🗑️ — restore anytime');
+}
+
+function renderLedger() {
+  const entries = DB.entries[currentName] || [];
+  let credit = 0, debit = 0;
+  entries.forEach(e => { if (e.type === 'credit') credit += e.amount; else debit += e.amount; });
+  const bal = credit - debit;
+
+  document.getElementById('sumCredit').textContent = fmt(credit);
+  document.getElementById('sumDebit').textContent = fmt(debit);
+  document.getElementById('sumBalance').textContent = (bal >= 0 ? '+' : '-') + fmt(bal);
+  document.getElementById('sumBalance').style.color = bal > 0 ? '#1a7a4a' : bal < 0 ? '#d32f2f' : '#1565c0';
+
+  const balText = bal > 0 ? `له ${fmt(bal)}` : bal < 0 ? `عليه ${fmt(Math.abs(bal))}` : 'متسوي';
+  document.getElementById('ledgerBalHeader').textContent = balText;
+  document.getElementById('ledgerBalHeader').style.color = bal > 0 ? '#a5d6b7' : bal < 0 ? '#ffaaaa' : '#fff';
+
+  const txList = document.getElementById('txList');
+  if (!entries.length) {
+    txList.innerHTML = '<div class="no-tx">لا توجد معاملات بعد<br>No entries yet</div>';
+    return;
+  }
+
+  // Calculate running balance (from oldest to newest for running total)
+  const sorted = [...entries].sort((a, b) => a.id - b.id);
+  const runMap = {};
+  let running = 0;
+  sorted.forEach(e => {
+    running += e.type === 'credit' ? e.amount : -e.amount;
+    runMap[e.id] = running;
+  });
+
+  txList.innerHTML = entries.map(e => {
+    const runBal = runMap[e.id];
+    const runText = runBal >= 0 ? `Balance: +£${Math.abs(runBal).toFixed(2)}` : `Balance: -£${Math.abs(runBal).toFixed(2)}`;
+    const fxLine = e.fxAmount && e.fxCur
+      ? `<div style="margin-top:5px;font-size:15px;color:#555">📤 Sent: <strong>${e.fxAmount.toLocaleString()} ${e.fxCur}</strong></div>`
+      : '';
+    const gbpLine = `<div style="margin-top:3px;font-size:15px;color:#333">💷 GBP Charged: <strong style="color:${e.type==='credit'?'#1a7a4a':'#d32f2f'}">£${e.amount.toFixed(2)}</strong></div>`;
+    return `
+      <div class="tx-row ${e.type}" style="flex-direction:column;align-items:stretch;padding:0">
+        <div style="background:${e.type==='credit'?'#1a7a4a':'#d32f2f'};display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-radius:7px 7px 0 0">
+          <span style="color:#fff;font-size:14px;font-weight:700">${e.type==='credit'?'▲ CREDIT':'▼ DEBIT'} &nbsp;|&nbsp; ${e.date}</span>
+          <div style="display:flex;gap:8px">
+            <button onclick="openEdit(${e.id})" style="background:rgba(255,255,255,.25);border:none;color:#fff;font-size:18px;border-radius:7px;padding:5px 12px;cursor:pointer;font-family:inherit">✏️ Edit</button>
+            <button onclick="deleteEntry(${e.id})" style="background:rgba(0,0,0,.2);border:none;color:#fff;font-size:18px;border-radius:7px;padding:5px 12px;cursor:pointer;font-family:inherit">✕</button>
+          </div>
+        </div>
+        <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between">
+          <div class="tx-info">
+            ${fxLine}
+            ${gbpLine}
+            <div style="margin-top:4px;color:#888;font-size:14px">${e.note ? '📝 ' + e.note : ''}</div>
+            <div style="font-size:12px;color:#aaa;margin-top:3px">${runText}</div>
+          </div>
+          <div class="tx-amount">${e.type==='credit'?'+':'-'}£${e.amount.toFixed(2)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════
+//  CALCULATOR
+// ══════════════════════════════════════
+let calcTargetId = '';
+let calcExpr = '';
+
+function openCalc(targetId) {
+  calcTargetId = targetId;
+  calcExpr = '';
+  document.getElementById('calcDisplay').textContent = '0';
+  document.getElementById('calcOverlay').classList.add('open');
+}
+
+function calcInput(val) {
+  const display = document.getElementById('calcDisplay');
+  if (val === 'C') {
+    calcExpr = '';
+    display.textContent = '0';
+    return;
+  }
+  if (val === '⌫') {
+    calcExpr = calcExpr.slice(0, -1);
+    display.textContent = calcExpr || '0';
+    return;
+  }
+  if (val === '=') {
+    try {
+      const result = Function('"use strict"; return (' + calcExpr + ')')();
+      const rounded = Math.round(result * 100) / 100;
+      calcExpr = String(rounded);
+      display.textContent = rounded.toFixed(2);
+    } catch(e) {
+      display.textContent = 'Error';
+      calcExpr = '';
+    }
+    return;
+  }
+  calcExpr += val;
+  display.textContent = calcExpr;
+}
+
+function calcUse() {
+  try {
+    const result = Function('"use strict"; return (' + calcExpr + ')')();
+    const rounded = Math.round(result * 100) / 100;
+    if (!isNaN(rounded) && rounded > 0) {
+      document.getElementById(calcTargetId).value = rounded.toFixed(2);
+      closeModal('calcOverlay');
+    } else {
+      toast('Invalid amount');
+    }
+  } catch(e) {
+    toast('Invalid calculation');
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+
+let editingId = null;
+
+function openEdit(id) {
+  const entry = (DB.entries[currentName] || []).find(e => e.id === id);
+  if (!entry) return;
+  editingId = id;
+  document.getElementById('editType').value = entry.type;
+  document.getElementById('editAmount').value = entry.amount;
+  document.getElementById('editFxAmount').value = entry.fxAmount || '';
+  document.getElementById('editFxCur').value = entry.fxCur || '';
+  document.getElementById('editDate').value = entry.date;
+  document.getElementById('editNote').value = entry.note || '';
+  document.getElementById('editOverlay').classList.add('open');
+}
+
+function closeEdit() {
+  document.getElementById('editOverlay').classList.remove('open');
+  editingId = null;
+}
+
+function saveEdit() {
+  const amount = parseFloat(document.getElementById('editAmount').value);
+  if (!amount || amount <= 0) { toast('Enter a valid GBP amount'); return; }
+  const idx = (DB.entries[currentName] || []).findIndex(e => e.id === editingId);
+  if (idx === -1) return;
+  DB.entries[currentName][idx] = {
+    ...DB.entries[currentName][idx],
+    type: document.getElementById('editType').value,
+    amount: amount,
+    fxAmount: parseFloat(document.getElementById('editFxAmount').value) || 0,
+    fxCur: document.getElementById('editFxCur').value || '',
+    date: document.getElementById('editDate').value,
+    note: document.getElementById('editNote').value.trim(),
+  };
+  save();
+  closeEdit();
+  renderLedger();
+  toast('✓ Entry updated');
+}
+
+
+function openBin() {
+  document.getElementById('page-home').classList.remove('active');
+  document.getElementById('page-bin').classList.add('active');
+  renderBin();
+}
+
+function closeBin() {
+  document.getElementById('page-bin').classList.remove('active');
+  document.getElementById('page-home').classList.add('active');
+  renderHome();
+}
+
+function renderBin() {
+  const bin = DB.bin || [];
+  document.getElementById('binCount').textContent = `${bin.length} item(s)`;
+  const badge = document.getElementById('binBadge');
+  if (badge) badge.textContent = bin.length ? `${bin.length} items` : '';
+  const el = document.getElementById('binList');
+  if (!bin.length) {
+    el.innerHTML = '<div class="bin-empty">🗑️ Bin is empty<br>سلة المحذوفات فارغة</div>';
+    return;
+  }
+  el.innerHTML = bin.map((e, idx) => `
+    <div class="bin-row">
+      <div class="bin-info">
+        <div class="bin-who">👤 ${e._who} — deleted ${e._deletedAt}</div>
+        <div class="bin-type ${e.type}">${e.type === 'credit' ? '▲ CREDIT' : '▼ DEBIT'}</div>
+        <div class="bin-note">${e.note || '—'}</div>
+        <div class="bin-date">📅 ${e.date}</div>
+      </div>
+      <div class="bin-amount">£${Math.abs(e.amount).toFixed(2)}</div>
+      <div class="bin-actions">
+        <button class="btn-restore" onclick="restoreEntry(${idx})">↩ Restore</button>
+        <button class="btn-perm-del" onclick="permDelete(${idx})">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function restoreEntry(idx) {
+  const e = DB.bin[idx];
+  if (!e) return;
+  const name = e._who;
+  // Re-add the name if it was deleted
+  if (!DB.names.includes(name)) {
+    DB.names.push(name);
+    DB.entries[name] = [];
+  }
+  if (!DB.entries[name]) DB.entries[name] = [];
+  // Remove bin metadata before restoring
+  const { _who, _deletedAt, ...clean } = e;
+  DB.entries[name].unshift(clean);
+  DB.bin.splice(idx, 1);
+  save();
+  renderBin();
+  toast(`✓ Restored to ${name}`);
+}
+
+function permDelete(idx) {
+  const e = DB.bin[idx];
+  if (!e) return;
+  const label = e.fxAmount && e.fxCur
+    ? `${e.fxAmount.toLocaleString()} ${e.fxCur} → £${e.amount.toFixed(2)}`
+    : `£${e.amount.toFixed(2)}`;
+  if (!confirm(`⚠️ Permanently delete this entry?\n\n${e._who} — ${e.type.toUpperCase()} — ${label}\nDate: ${e.date}\n\nThis CANNOT be undone.`)) return;
+  DB.bin.splice(idx, 1);
+  save();
+  renderBin();
+  toast('Permanently deleted');
+}
+
+function emptyBin() {
+  if (!DB.bin.length) { toast('Bin is already empty'); return; }
+  if (!confirm(`⚠️ Permanently delete ALL ${DB.bin.length} items from the bin?\n\nThis CANNOT be undone.`)) return;
+  DB.bin = [];
+  save();
+  renderBin();
+  toast('Bin emptied');
+}
+
+// ══════════════════════════════════════
+function stripArabic(str) {
+  // Remove Arabic characters — used only for notes in PDF table
+  return (str || '').replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/g, '').trim();
+}
+
+function safeFilename(str) {
+  // For filename only — strip Arabic and spaces
+  return (str || 'account').replace(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || 'account';
+}
+
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const entries = DB.entries[currentName] || [];
+  let credit = 0, debit = 0;
+  entries.forEach(e => { if (e.type === 'credit') credit += e.amount; else debit += e.amount; });
+  const bal = credit - debit;
+
+  const W = 210, M = 14;
+  const safeName = stripArabic(currentName) || 'Customer';
+  const genDate = new Date().toLocaleString('en-GB');
+  const stmtDate = new Date().toLocaleDateString('en-GB');
+
+  // Header bar
+  doc.setFillColor(26, 122, 74);
+  doc.rect(0, 0, W, 44, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Mohammed Mahmoud Al-Haddad', M, 18);
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Account Ledger Statement', M, 28);
+  doc.setFontSize(10);
+  doc.text(`Generated: ${genDate}`, W - M, 28, { align: 'right' });
+
+  // Gold accent line
+  doc.setFillColor(201, 168, 76);
+  doc.rect(0, 44, W, 3, 'F');
+
+  // Customer info box
+  doc.setFillColor(240, 248, 244);
+  doc.rect(M, 52, W - M * 2, 26, 'F');
+  doc.setDrawColor(26, 122, 74);
+  doc.setLineWidth(0.5);
+  doc.rect(M, 52, W - M * 2, 26, 'S');
+  doc.setTextColor(26, 122, 74);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  const displayName = safeName || '(Arabic name - see app)';
+  doc.text(`Account: ${displayName}`, M + 5, 63);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Total transactions: ${entries.length}   |   Statement Date: ${stmtDate}`, M + 5, 72);
+
+  // Summary boxes
+  const bw = (W - M * 2 - 8) / 3;
+  const bdata = [
+    ['CREDIT (IN)', `+GBP ${credit.toFixed(2)}`, [26, 122, 74]],
+    ['DEBIT (OUT)', `GBP ${debit.toFixed(2)}`, [211, 47, 47]],
+    ['BALANCE', `${bal >= 0 ? '+' : '-'}GBP ${Math.abs(bal).toFixed(2)}`, bal >= 0 ? [21, 101, 192] : [150, 30, 30]],
+  ];
+  bdata.forEach(([label, val, rgb], i) => {
+    const x = M + i * (bw + 4);
+    doc.setFillColor(...rgb);
+    doc.roundedRect(x, 84, bw, 22, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(label, x + bw / 2, 91, { align: 'center' });
+    doc.setFontSize(13);
+    doc.text(val, x + bw / 2, 100, { align: 'center' });
+  });
+
+  // Table — strip Arabic from notes too
+  const sorted = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+  let running = 0;
+  const rows = sorted.map((e, i) => {
+    running += e.type === 'credit' ? e.amount : -e.amount;
+    const noteClean = e.note ? (stripArabic(e.note) || e.note.substring(0, 20)) : '-';
+    const fxCol = e.fxAmount && e.fxCur ? `${e.fxAmount.toLocaleString()} ${e.fxCur}` : '-';
+    return [
+      i + 1,
+      e.date,
+      e.type === 'credit' ? 'CREDIT' : 'DEBIT',
+      noteClean,
+      fxCol,
+      e.type === 'credit' ? `+${e.amount.toFixed(2)}` : '',
+      e.type === 'debit'  ? `${e.amount.toFixed(2)}` : '',
+      `${running >= 0 ? '+' : ''}${running.toFixed(2)}`,
+    ];
+  });
+
+  doc.autoTable({
+    startY: 112,
+    head: [['#', 'Date', 'Type', 'Notes', 'Orig. Currency', 'Credit (£)', 'Debit (£)', 'Balance (£)']],
+    body: rows,
+    styles: { fontSize: 9, cellPadding: 4, font: 'helvetica' },
+    headStyles: { fillColor: [26, 122, 74], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+    alternateRowStyles: { fillColor: [245, 250, 247] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 24 },
+      2: { cellWidth: 22, halign: 'center' },
+      3: { cellWidth: 42 },
+      4: { cellWidth: 28, halign: 'center' },
+      5: { cellWidth: 20, halign: 'right' },
+      6: { cellWidth: 20, halign: 'right' },
+      7: { cellWidth: 22, halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: M, right: M },
+    didParseCell: (d) => {
+      if (d.section === 'body') {
+        if (d.column.index === 2) {
+          d.cell.styles.textColor = d.cell.raw === 'CREDIT' ? [26, 122, 74] : [211, 47, 47];
+          d.cell.styles.fontStyle = 'bold';
+        }
+        if (d.column.index === 5 && d.cell.raw) d.cell.styles.textColor = [26, 122, 74];
+        if (d.column.index === 6 && d.cell.raw) d.cell.styles.textColor = [211, 47, 47];
+        if (d.column.index === 7) {
+          const v = parseFloat(d.cell.raw);
+          d.cell.styles.textColor = v >= 0 ? [21, 101, 192] : [211, 47, 47];
+        }
+      }
+    }
+  });
+
+  // Footer
+  const fY = Math.min(doc.lastAutoTable.finalY + 8, 278);
+  doc.setFillColor(26, 122, 74);
+  doc.rect(0, fY, W, 14, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Mohammed Mahmoud Al-Haddad  |  Account Ledger', M, fY + 9);
+  doc.text(`Statement: ${stmtDate}`, W - M, fY + 9, { align: 'right' });
+
+  const filename = `Statement_${safeFilename(currentName)}_${today()}.pdf`;
+  doc.save(filename);
+  toast('PDF downloaded!');
+}
+</script>
+</body>
+</html>
