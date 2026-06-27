@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MO Debit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+const PROJECT_ID = 'daftar-haddad';
+const API_KEY = 'AIzaSyAcDxHJ0js0qD9-vHP6aSXoiZ3QRoXXo90';
+const BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/ledger/debittracker`;
+
+window._fbSave = async function(data) {
+  try {
+    const body = { fields: { data: { stringValue: JSON.stringify(data) }, updated: { stringValue: new Date().toISOString() } } };
+    await fetch(`${BASE_URL}?key=${API_KEY}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch(e) { console.error('Save error:', e); }
+};
+
+window._fbLoad = async function() {
+  try {
+    const res = await fetch(`${BASE_URL}?key=${API_KEY}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.fields && json.fields.data) return JSON.parse(json.fields.data.stringValue);
+    return null;
+  } catch(e) { return null; }
+};
+
+window._fbListen = function(callback) {
+  setInterval(async () => {
+    const data = await window._fbLoad();
+    if (data) callback(data);
+  }, 8000);
+};
+</script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #111; min-height: 100vh; font-size: 18px; }
+
+/* LOCK */
+#lockScreen { position: fixed; inset: 0; background: #1565c0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; }
+.lock-title { font-size: 34px; font-weight: 900; color: #fff; margin-bottom: 4px; }
+.lock-sub { font-size: 14px; color: rgba(255,255,255,.7); margin-bottom: 36px; }
+.lock-box { background: #fff; border-radius: 20px; padding: 30px; width: 100%; max-width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,.3); text-align: center; }
+.lock-box h2 { font-size: 22px; color: #1565c0; margin-bottom: 20px; }
+.lock-input { width: 100%; padding: 16px; border: 2px solid #ddd; border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 4px; outline: none; margin-bottom: 12px; font-family: inherit; }
+.lock-input:focus { border-color: #1565c0; }
+.lock-err { color: #d32f2f; font-size: 14px; font-weight: 600; margin-bottom: 10px; display: none; }
+.lock-btn { width: 100%; background: #1565c0; color: #fff; border: none; border-radius: 12px; padding: 16px; font-size: 22px; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+/* HEADER */
+header { background: #1565c0; color: #fff; padding: 16px 20px; position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.header-title { font-size: 26px; font-weight: 900; }
+.header-sub { font-size: 12px; opacity: .7; margin-top: 2px; }
+#syncStatus { font-size: 13px; opacity: .85; }
+
+/* MAIN */
+.main { padding: 18px; max-width: 700px; margin: 0 auto; }
+
+/* ADD NAME */
+.add-box { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.add-box h2 { font-size: 18px; font-weight: 700; color: #1565c0; margin-bottom: 12px; }
+.add-row { display: flex; gap: 10px; }
+.add-input { flex: 1; padding: 13px 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 19px; font-family: inherit; outline: none; }
+.add-input:focus { border-color: #1565c0; }
+.btn-add { background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 13px 22px; font-size: 19px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-add:active { opacity: .85; }
+
+/* PERSON CARDS */
+.person-card { background: #fff; border-radius: 14px; padding: 18px 20px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-right: 6px solid #1565c0; transition: box-shadow .2s; }
+.person-card:active { box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.person-left { flex: 1; }
+.person-name { font-size: 22px; font-weight: 700; }
+.person-meta { font-size: 14px; color: #888; margin-top: 3px; }
+.person-bal { font-size: 24px; font-weight: 900; font-family: 'Courier New', monospace; }
+.bal-pos { color: #1565c0; }
+.bal-neg { color: #d32f2f; }
+.bal-zero { color: #888; }
+.person-del { background: none; border: none; color: #ddd; font-size: 22px; cursor: pointer; padding: 6px; }
+.person-del:active { color: #d32f2f; }
+.empty-msg { text-align: center; color: #aaa; font-size: 19px; padding: 50px 20px; }
+
+/* LEDGER PAGE */
+.ledger-header { background: #1565c0; color: #fff; padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+.back-btn { background: rgba(255,255,255,.2); border: none; color: #fff; font-size: 20px; border-radius: 8px; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+.ledger-name { font-size: 22px; font-weight: 700; flex: 1; }
+.ledger-bal { font-size: 18px; font-weight: 700; }
+
+.ledger-main { padding: 16px; max-width: 700px; margin: 0 auto; }
+
+/* SUMMARY */
+.summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.sum-box { background: #fff; border-radius: 12px; padding: 14px 10px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.07); }
+.sum-label { font-size: 12px; color: #888; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
+.sum-val { font-size: 22px; font-weight: 900; font-family: 'Courier New', monospace; }
+.sum-add { color: #1565c0; }
+.sum-ded { color: #d32f2f; }
+.sum-net-pos { color: #1565c0; }
+.sum-net-neg { color: #d32f2f; }
+.sum-net-zero { color: #888; }
+
+/* ENTRY FORM */
+.entry-form { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.07); }
+.entry-form h3 { font-size: 19px; color: #1565c0; font-weight: 700; margin-bottom: 14px; }
+
+.type-toggle { display: flex; border-radius: 10px; overflow: hidden; border: 2px solid #ddd; margin-bottom: 14px; }
+.type-btn { flex: 1; padding: 14px; border: none; font-size: 20px; font-weight: 700; cursor: pointer; font-family: inherit; background: #f5f5f5; color: #888; transition: all .2s; }
+.type-btn.add.active { background: #1565c0; color: #fff; }
+.type-btn.deduct.active { background: #d32f2f; color: #fff; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.form-group label { display: block; font-size: 13px; color: #666; font-weight: 600; margin-bottom: 5px; text-transform: uppercase; }
+.form-group input { width: 100%; padding: 12px 14px; border: 2px solid #ddd; border-radius: 10px; font-size: 19px; font-family: inherit; outline: none; background: #fafafa; }
+.form-group input:focus { border-color: #1565c0; }
+.form-group.full { grid-column: 1/-1; }
+.amt-row { display: flex; gap: 8px; }
+.amt-row input { flex: 1; }
+.calc-trigger { background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 10px 16px; font-size: 22px; cursor: pointer; }
+
+.btn-save { width: 100%; background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 16px; font-size: 22px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 6px; }
+.btn-save.deduct-mode { background: #d32f2f; }
+.btn-save:active { opacity: .85; }
+
+/* TRANSACTIONS */
+.tx-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.tx-title { font-size: 19px; font-weight: 700; }
+.btn-pdf { background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 10px 18px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+.tx-row { background: #fff; border-radius: 12px; padding: 0; margin-bottom: 10px; box-shadow: 0 1px 5px rgba(0,0,0,.07); overflow: hidden; }
+.tx-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; }
+.tx-bar.add-bar { background: #1565c0; }
+.tx-bar.ded-bar { background: #d32f2f; }
+.tx-bar-left { color: #fff; font-size: 14px; font-weight: 600; }
+.tx-bar-right { display: flex; gap: 8px; }
+.tx-edit-btn, .tx-del-btn { background: rgba(255,255,255,.25); border: none; color: #fff; border-radius: 6px; padding: 5px 10px; font-size: 15px; cursor: pointer; font-family: inherit; font-weight: 600; }
+.tx-body { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+.tx-info { flex: 1; }
+.tx-note { font-size: 16px; color: #333; }
+.tx-date-bal { font-size: 12px; color: #aaa; margin-top: 3px; }
+.tx-amount { font-size: 24px; font-weight: 900; font-family: 'Courier New', monospace; }
+.tx-row.add-row-item .tx-amount { color: #1565c0; }
+.tx-row.ded-row-item .tx-amount { color: #d32f2f; }
+.no-tx { text-align: center; color: #bbb; font-size: 18px; padding: 40px; }
+
+/* CALC MODAL */
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+.overlay.open { display: flex; }
+.calc-modal { background: #fff; border-radius: 18px; padding: 22px; width: 100%; max-width: 320px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+.calc-modal h3 { font-size: 20px; color: #1565c0; font-weight: 700; margin-bottom: 12px; }
+.calc-display { background: #f5f5f5; border: 2px solid #ddd; border-radius: 10px; padding: 12px 16px; font-size: 28px; font-weight: 700; text-align: right; margin-bottom: 12px; min-height: 54px; font-family: 'Courier New', monospace; word-break: break-all; }
+.calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.c-btn { background: #fff; border: 2px solid #e0e0e0; border-radius: 9px; padding: 15px 6px; font-size: 21px; font-weight: 700; cursor: pointer; font-family: inherit; color: #111; transition: all .15s; }
+.c-btn:active { background: #e8eeff; border-color: #1565c0; }
+.c-op { background: #f0f0f0; color: #1565c0; }
+.c-clear { background: #ffeaea; color: #d32f2f; }
+.c-eq { background: #1565c0; color: #fff; border-color: #1565c0; }
+.calc-use { width: 100%; background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 19px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 12px; }
+.calc-cancel { width: 100%; background: #eee; color: #555; border: none; border-radius: 10px; padding: 12px; font-size: 17px; cursor: pointer; font-family: inherit; margin-top: 8px; }
+
+/* EDIT MODAL */
+.edit-modal { background: #fff; border-radius: 18px; padding: 24px; width: 100%; max-width: 460px; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+.edit-modal h3 { font-size: 20px; color: #1565c0; font-weight: 700; margin-bottom: 18px; }
+.edit-field { margin-bottom: 14px; }
+.edit-field label { display: block; font-size: 13px; color: #666; font-weight: 600; margin-bottom: 5px; text-transform: uppercase; }
+.edit-field input, .edit-field select { width: 100%; padding: 12px 14px; border: 2px solid #ddd; border-radius: 10px; font-size: 19px; font-family: inherit; outline: none; }
+.edit-field input:focus, .edit-field select:focus { border-color: #1565c0; }
+.edit-save { width: 100%; background: #1565c0; color: #fff; border: none; border-radius: 10px; padding: 14px; font-size: 20px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 6px; }
+.edit-cancel { width: 100%; background: #eee; color: #555; border: none; border-radius: 10px; padding: 12px; font-size: 17px; cursor: pointer; font-family: inherit; margin-top: 8px; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 13px 26px; border-radius: 30px; font-size: 17px; opacity: 0; transition: opacity .3s; z-index: 999; pointer-events: none; white-space: nowrap; }
+.toast.show { opacity: 1; }
+
+.page { display: none; }
+.page.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- LOCK -->
+<div id="lockScreen">
+  <div class="lock-title">💳 MO Debit Tracker</div>
+  <div class="lock-sub">Mohammed Mahmoud Al-Haddad</div>
+  <div class="lock-box">
+    <h2>🔒 Enter Password</h2>
+    <input class="lock-input" type="password" id="pwInput" placeholder="Password" onkeydown="if(event.key==='Enter')unlock()">
+    <div class="lock-err" id="pwErr">❌ Wrong password. Try again.</div>
+    <button class="lock-btn" onclick="unlock()">🔓 Unlock</button>
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+  <header>
+    <div>
+      <div class="header-title">💳 MO Debit Tracker</div>
+      <div class="header-sub">Mohammed Mahmoud Al-Haddad</div>
+    </div>
+    <div id="syncStatus" style="color:#fff">🔄 Connecting...</div>
+  </header>
+
+  <div class="main">
+    <div class="add-box">
+      <h2>➕ Add New Person</h2>
+      <div class="add-row">
+        <input class="add-input" type="text" id="newName" placeholder="Enter name..." onkeydown="if(event.key==='Enter')addPerson()">
+        <button class="btn-add" onclick="addPerson()">Add</button>
+      </div>
+    </div>
+    <div id="personList"><div class="empty-msg">No names yet. Add someone above.</div></div>
+  </div>
+</div>
+
+<!-- LEDGER -->
+<div class="page" id="page-ledger">
+  <div class="ledger-header">
+    <button class="back-btn" onclick="goHome()">◀ Back</button>
+    <div class="ledger-name" id="ledgerName"></div>
+    <div class="ledger-bal" id="ledgerBal"></div>
+  </div>
+
+  <div class="ledger-main">
+    <div class="summary">
+      <div class="sum-box"><div class="sum-label">Added</div><div class="sum-val sum-add" id="sumAdd">£0.00</div></div>
+      <div class="sum-box"><div class="sum-label">Deducted</div><div class="sum-val sum-ded" id="sumDed">£0.00</div></div>
+      <div class="sum-box"><div class="sum-label">Balance</div><div class="sum-val" id="sumNet">£0.00</div></div>
+    </div>
+
+    <div class="entry-form">
+      <h3>➕ New Entry</h3>
+      <div class="type-toggle">
+        <button class="type-btn add active" id="btnAdd" onclick="setType('add')">➕ Add</button>
+        <button class="type-btn deduct" id="btnDed" onclick="setType('deduct')">➖ Deduct</button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount (£) *</label>
+          <div class="amt-row">
+            <input type="number" id="eAmt" placeholder="0.00" step="0.01" min="0">
+            <button class="calc-trigger" onclick="openCalc('eAmt')">🧮</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="eDate">
+        </div>
+      </div>
+      <div class="form-group full">
+        <label>Notes (optional)</label>
+        <input type="text" id="eNote" placeholder="What is this for?" onkeydown="if(event.key==='Enter')saveEntry()">
+      </div>
+      <button class="btn-save" id="saveBtn" onclick="saveEntry()">✓ Save</button>
+    </div>
+
+    <div class="tx-header">
+      <div class="tx-title">📋 Transaction History</div>
+      <button class="btn-pdf" onclick="exportPDF()">📄 PDF</button>
+    </div>
+    <div id="txList"></div>
+  </div>
+</div>
+
+<!-- CALCULATOR -->
+<div class="overlay" id="calcOverlay">
+  <div class="calc-modal">
+    <h3>🧮 Calculator</h3>
+    <div class="calc-display" id="calcDisplay">0</div>
+    <div class="calc-grid">
+      <button class="c-btn c-clear" onclick="ci('C')" style="grid-column:span 2">C</button>
+      <button class="c-btn c-op" onclick="ci('⌫')">⌫</button>
+      <button class="c-btn c-op" onclick="ci('/')">÷</button>
+      <button class="c-btn" onclick="ci('7')">7</button>
+      <button class="c-btn" onclick="ci('8')">8</button>
+      <button class="c-btn" onclick="ci('9')">9</button>
+      <button class="c-btn c-op" onclick="ci('*')">×</button>
+      <button class="c-btn" onclick="ci('4')">4</button>
+      <button class="c-btn" onclick="ci('5')">5</button>
+      <button class="c-btn" onclick="ci('6')">6</button>
+      <button class="c-btn c-op" onclick="ci('-')">−</button>
+      <button class="c-btn" onclick="ci('1')">1</button>
+      <button class="c-btn" onclick="ci('2')">2</button>
+      <button class="c-btn" onclick="ci('3')">3</button>
+      <button class="c-btn c-op" onclick="ci('+')">+</button>
+      <button class="c-btn" onclick="ci('0')" style="grid-column:span 2">0</button>
+      <button class="c-btn" onclick="ci('.')">.</button>
+      <button class="c-btn c-eq" onclick="ci('=')">=</button>
+    </div>
+    <button class="calc-use" onclick="useCalc()">✓ Use this amount</button>
+    <button class="calc-cancel" onclick="closeOverlay('calcOverlay')">Cancel</button>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="overlay" id="editOverlay">
+  <div class="edit-modal">
+    <h3>✏️ Edit Entry</h3>
+    <div class="edit-field">
+      <label>Type</label>
+      <select id="editType">
+        <option value="add">➕ Add</option>
+        <option value="deduct">➖ Deduct</option>
+      </select>
+    </div>
+    <div class="edit-field">
+      <label>Amount (£) *</label>
+      <div class="amt-row">
+        <input type="number" id="editAmt" placeholder="0.00" step="0.01" min="0" style="flex:1">
+        <button class="calc-trigger" onclick="openCalc('editAmt')">🧮</button>
+      </div>
+    </div>
+    <div class="edit-field">
+      <label>Date</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="edit-field">
+      <label>Notes</label>
+      <input type="text" id="editNote" placeholder="Optional...">
+    </div>
+    <button class="edit-save" onclick="saveEdit()">✓ Save Changes</button>
+    <button class="edit-cancel" onclick="closeOverlay('editOverlay')">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════
+//  STATE
+// ══════════════════════════
+let DB = { people: {}, updated: '' };
+let currentPerson = '';
+let entryType = 'add';
+let calcTarget = '';
+let calcExpr = '';
+let editingId = null;
+let _saving = false;
+
+// ══════════════════════════
+//  LOCK
+// ══════════════════════════
+function unlock() {
+  const v = document.getElementById('pwInput').value;
+  if (v === 'MO@MO') {
+    document.getElementById('lockScreen').style.display = 'none';
+  } else {
+    const err = document.getElementById('pwErr');
+    err.style.display = 'block';
+    document.getElementById('pwInput').value = '';
+    setTimeout(() => err.style.display = 'none', 3000);
+  }
+}
+
+// ══════════════════════════
+//  STORAGE
+// ══════════════════════════
+function saveLocal() {
+  DB.updated = new Date().toISOString();
+  localStorage.setItem('debit_tracker', JSON.stringify(DB));
+}
+
+async function save() {
+  saveLocal();
+  showSync('💾 Saved');
+  if (window._fbSave) {
+    try {
+      _saving = true;
+      await window._fbSave(JSON.parse(JSON.stringify(DB)));
+      _saving = false;
+      showSync('🟢 Saved to cloud');
+    } catch(e) { _saving = false; }
+  }
+}
+
+function showSync(msg) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = msg;
+}
+
+// ══════════════════════════
+//  INIT
+// ══════════════════════════
+window.onload = () => {
+  document.getElementById('eDate').value = today();
+
+  // Load local first
+  const local = localStorage.getItem('debit_tracker');
+  if (local) {
+    try { DB = JSON.parse(local); if (!DB.people) DB.people = {}; renderHome(); } catch(e) {}
+  }
+
+  // Try Firebase
+  setTimeout(() => {
+    if (window._fbLoad) {
+      window._fbLoad().then(data => {
+        if (data && data.updated > (DB.updated || '')) {
+          DB = data;
+          if (!DB.people) DB.people = {};
+          saveLocal();
+          renderHome();
+        }
+        showSync('🟢 Connected');
+      }).catch(() => showSync('💾 Offline'));
+
+      if (window._fbListen) {
+        window._fbListen(data => {
+          if (_saving) return;
+          if (data && data.updated > (DB.updated || '')) {
+            DB = data;
+            if (!DB.people) DB.people = {};
+            saveLocal();
+            renderHome();
+            if (currentPerson) renderLedger();
+            showSync('🟢 Updated');
+          }
+        });
+      }
+    }
+  }, 800);
+};
+
+function today() { return new Date().toISOString().split('T')[0]; }
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function fmt(n) { return '£' + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
+
+// ══════════════════════════
+//  HOME
+// ══════════════════════════
+function renderHome() {
+  const list = document.getElementById('personList');
+  const people = Object.keys(DB.people || {});
+  if (!people.length) {
+    list.innerHTML = '<div class="empty-msg">No names yet. Add someone above.</div>';
+    return;
+  }
+  list.innerHTML = people.map(name => {
+    const txs = DB.people[name] || [];
+    let bal = 0;
+    txs.forEach(t => bal += t.type === 'add' ? t.amount : -t.amount);
+    const cls = bal > 0 ? 'bal-pos' : bal < 0 ? 'bal-neg' : 'bal-zero';
+    const balText = bal > 0 ? `+${fmt(bal)}` : bal < 0 ? `-${fmt(Math.abs(bal))}` : '£0.00';
+    return `<div class="person-card" onclick="openLedger('${encodeURIComponent(name)}')">
+      <div class="person-left">
+        <div class="person-name">${name}</div>
+        <div class="person-meta">${txs.length} transaction${txs.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="person-bal ${cls}">${balText}</div>
+      <button class="person-del" onclick="event.stopPropagation();deletePerson('${encodeURIComponent(name)}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function addPerson() {
+  const input = document.getElementById('newName');
+  const name = input.value.trim();
+  if (!name) { toast('Enter a name'); return; }
+  if (DB.people[name]) { toast('Name already exists'); return; }
+  DB.people[name] = [];
+  saveLocal();
+  save();
+  input.value = '';
+  renderHome();
+  toast('✓ Added: ' + name);
+}
+
+function deletePerson(enc) {
+  const name = decodeURIComponent(enc);
+  if (!confirm(`Delete "${name}" and all their transactions?`)) return;
+  delete DB.people[name];
+  save();
+  renderHome();
+}
+
+// ══════════════════════════
+//  LEDGER
+// ══════════════════════════
+function openLedger(enc) {
+  currentPerson = decodeURIComponent(enc);
+  entryType = 'add';
+  setType('add');
+  document.getElementById('eAmt').value = '';
+  document.getElementById('eNote').value = '';
+  document.getElementById('eDate').value = today();
+  document.getElementById('ledgerName').textContent = currentPerson;
+  document.getElementById('page-home').classList.remove('active');
+  document.getElementById('page-ledger').classList.add('active');
+  renderLedger();
+}
+
+function goHome() {
+  document.getElementById('page-ledger').classList.remove('active');
+  document.getElementById('page-home').classList.add('active');
+  renderHome();
+  currentPerson = '';
+}
+
+function setType(t) {
+  entryType = t;
+  document.getElementById('btnAdd').classList.toggle('active', t === 'add');
+  document.getElementById('btnDed').classList.toggle('active', t === 'deduct');
+  document.getElementById('saveBtn').className = 'btn-save' + (t === 'deduct' ? ' deduct-mode' : '');
+  document.getElementById('saveBtn').textContent = t === 'add' ? '✓ Add to Balance' : '✓ Deduct from Balance';
+}
+
+function saveEntry() {
+  const amount = parseFloat(document.getElementById('eAmt').value);
+  const note = document.getElementById('eNote').value.trim();
+  const date = document.getElementById('eDate').value || today();
+  if (!amount || amount <= 0) { toast('Enter a valid amount'); return; }
+  if (!DB.people[currentPerson]) DB.people[currentPerson] = [];
+  DB.people[currentPerson].unshift({ id: Date.now(), type: entryType, amount, note, date });
+  saveLocal();
+  save();
+  document.getElementById('eAmt').value = '';
+  document.getElementById('eNote').value = '';
+  document.getElementById('eDate').value = today();
+  renderLedger();
+  toast(entryType === 'add' ? '✓ Added to balance' : '✓ Deducted from balance');
+}
+
+function deleteEntry(id) {
+  DB.people[currentPerson] = DB.people[currentPerson].filter(t => t.id !== id);
+  save();
+  renderLedger();
+}
+
+function openEdit(id) {
+  const tx = (DB.people[currentPerson] || []).find(t => t.id === id);
+  if (!tx) return;
+  editingId = id;
+  document.getElementById('editType').value = tx.type;
+  document.getElementById('editAmt').value = tx.amount;
+  document.getElementById('editDate').value = tx.date;
+  document.getElementById('editNote').value = tx.note || '';
+  document.getElementById('editOverlay').classList.add('open');
+}
+
+function saveEdit() {
+  const amount = parseFloat(document.getElementById('editAmt').value);
+  if (!amount || amount <= 0) { toast('Enter a valid amount'); return; }
+  const idx = DB.people[currentPerson].findIndex(t => t.id === editingId);
+  if (idx === -1) return;
+  DB.people[currentPerson][idx] = {
+    ...DB.people[currentPerson][idx],
+    type: document.getElementById('editType').value,
+    amount,
+    date: document.getElementById('editDate').value,
+    note: document.getElementById('editNote').value.trim()
+  };
+  save();
+  closeOverlay('editOverlay');
+  renderLedger();
+  toast('✓ Updated');
+}
+
+function renderLedger() {
+  const txs = DB.people[currentPerson] || [];
+  let added = 0, deducted = 0;
+  txs.forEach(t => t.type === 'add' ? added += t.amount : deducted += t.amount);
+  const net = added - deducted;
+
+  document.getElementById('sumAdd').textContent = fmt(added);
+  document.getElementById('sumDed').textContent = fmt(deducted);
+  const netEl = document.getElementById('sumNet');
+  netEl.textContent = (net >= 0 ? '+' : '-') + fmt(Math.abs(net));
+  netEl.className = 'sum-val ' + (net > 0 ? 'sum-net-pos' : net < 0 ? 'sum-net-neg' : 'sum-net-zero');
+
+  const balText = net > 0 ? `+${fmt(net)}` : net < 0 ? `-${fmt(Math.abs(net))}` : '£0.00';
+  document.getElementById('ledgerBal').textContent = balText;
+  document.getElementById('ledgerBal').style.color = net > 0 ? '#90caf9' : net < 0 ? '#ffaaaa' : '#fff';
+
+  const list = document.getElementById('txList');
+  if (!txs.length) { list.innerHTML = '<div class="no-tx">No transactions yet</div>'; return; }
+
+  // Running balance
+  const sorted = [...txs].sort((a,b) => a.id - b.id);
+  const runMap = {};
+  let run = 0;
+  sorted.forEach(t => { run += t.type === 'add' ? t.amount : -t.amount; runMap[t.id] = run; });
+
+  list.innerHTML = txs.map(t => {
+    const rb = runMap[t.id];
+    const rbText = (rb >= 0 ? '+' : '') + fmt(Math.abs(rb)).replace('£', (rb < 0 ? '-£' : '£'));
+    return `<div class="tx-row ${t.type === 'add' ? 'add-row-item' : 'ded-row-item'}">
+      <div class="tx-bar ${t.type === 'add' ? 'add-bar' : 'ded-bar'}">
+        <div class="tx-bar-left">${t.type === 'add' ? '➕ ADDED' : '➖ DEDUCTED'} &nbsp;|&nbsp; ${t.date}</div>
+        <div class="tx-bar-right">
+          <button class="tx-edit-btn" onclick="openEdit(${t.id})">✏️ Edit</button>
+          <button class="tx-del-btn" onclick="deleteEntry(${t.id})">✕</button>
+        </div>
+      </div>
+      <div class="tx-body">
+        <div class="tx-info">
+          <div class="tx-note">${t.note || '—'}</div>
+          <div class="tx-date-bal">Running balance: ${rb >= 0 ? '+' : ''}${fmt(Math.abs(rb)).replace('£', rb < 0 ? '-£' : '£')}</div>
+        </div>
+        <div class="tx-amount">${t.type === 'add' ? '+' : '-'}${fmt(t.amount)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════
+//  CALCULATOR
+// ══════════════════════════
+function openCalc(target) {
+  calcTarget = target;
+  calcExpr = '';
+  document.getElementById('calcDisplay').textContent = '0';
+  document.getElementById('calcOverlay').classList.add('open');
+}
+
+function ci(v) {
+  const d = document.getElementById('calcDisplay');
+  if (v === 'C') { calcExpr = ''; d.textContent = '0'; return; }
+  if (v === '⌫') { calcExpr = calcExpr.slice(0,-1); d.textContent = calcExpr || '0'; return; }
+  if (v === '=') {
+    try {
+      const r = Math.round(Function('"use strict";return(' + calcExpr + ')')() * 100) / 100;
+      calcExpr = String(r);
+      d.textContent = r.toFixed(2);
+    } catch { d.textContent = 'Error'; calcExpr = ''; }
+    return;
+  }
+  calcExpr += v;
+  d.textContent = calcExpr;
+}
+
+function useCalc() {
+  try {
+    const r = Math.round(Function('"use strict";return(' + calcExpr + ')')() * 100) / 100;
+    if (!isNaN(r) && r > 0) {
+      document.getElementById(calcTarget).value = r.toFixed(2);
+      closeOverlay('calcOverlay');
+    } else { toast('Invalid amount'); }
+  } catch { toast('Invalid calculation'); }
+}
+
+// ══════════════════════════
+//  PDF
+// ══════════════════════════
+function exportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const txs = DB.people[currentPerson] || [];
+  let added = 0, deducted = 0;
+  txs.forEach(t => t.type === 'add' ? added += t.amount : deducted += t.amount);
+  const net = added - deducted;
+  const W = 210, M = 14;
+
+  doc.setFillColor(21, 101, 192);
+  doc.rect(0, 0, W, 44, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(22); doc.setFont('helvetica','bold');
+  doc.text('MO Debit Tracker Statement', M, 18);
+  doc.setFontSize(12); doc.setFont('helvetica','normal');
+  doc.text('Mohammed Mahmoud Al-Haddad', M, 28);
+  doc.text(`Generated: ${new Date().toLocaleString('en-GB')}`, W-M, 28, {align:'right'});
+
+  doc.setFillColor(232,240,254);
+  doc.rect(M, 50, W-M*2, 26, 'F');
+  doc.setDrawColor(21,101,192); doc.setLineWidth(.5);
+  doc.rect(M, 50, W-M*2, 26, 'S');
+  doc.setTextColor(21,101,192); doc.setFontSize(16); doc.setFont('helvetica','bold');
+  doc.text(currentPerson, M+5, 61);
+  doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,100);
+  doc.text(`${txs.length} transactions  |  Date: ${new Date().toLocaleDateString('en-GB')}`, M+5, 70);
+
+  const bw = (W-M*2-8)/3;
+  [[`+£${added.toFixed(2)}`,'TOTAL ADDED',[21,101,192]],[`£${deducted.toFixed(2)}`,'TOTAL DEDUCTED',[211,47,47]],[(net>=0?'+':'-')+`£${Math.abs(net).toFixed(2)}`,'BALANCE',net>=0?[21,101,192]:[211,47,47]]].forEach(([val,label,rgb],i)=>{
+    const x = M+i*(bw+4);
+    doc.setFillColor(...rgb); doc.roundedRect(x,82,bw,22,2,2,'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','bold');
+    doc.text(label,x+bw/2,89,{align:'center'});
+    doc.setFontSize(13);
+    doc.text(val,x+bw/2,99,{align:'center'});
+  });
+
+  const sorted = [...txs].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  let run = 0;
+  const rows = sorted.map((t,i)=>{
+    run += t.type==='add'?t.amount:-t.amount;
+    return [i+1,t.date,t.type==='add'?'ADD':'DEDUCT',t.note||'-',t.type==='add'?`+£${t.amount.toFixed(2)}`:'',t.type==='deduct'?`£${t.amount.toFixed(2)}`:'`',(run>=0?'+':'')+`£${run.toFixed(2)}`];
+  });
+
+  doc.autoTable({
+    startY:110,
+    head:[['#','Date','Type','Notes','Added','Deducted','Balance']],
+    body:rows,
+    styles:{fontSize:9,cellPadding:4},
+    headStyles:{fillColor:[21,101,192],textColor:255,fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[245,248,255]},
+    columnStyles:{0:{cellWidth:8,halign:'center'},1:{cellWidth:22},2:{cellWidth:20,halign:'center'},3:{cellWidth:55},4:{cellWidth:22,halign:'right'},5:{cellWidth:22,halign:'right'},6:{cellWidth:25,halign:'right',fontStyle:'bold'}},
+    margin:{left:M,right:M},
+    didParseCell:(d)=>{
+      if(d.section==='body'){
+        if(d.column.index===2){d.cell.styles.textColor=d.cell.raw==='ADD'?[21,101,192]:[211,47,47];d.cell.styles.fontStyle='bold';}
+        if(d.column.index===4&&d.cell.raw)d.cell.styles.textColor=[21,101,192];
+        if(d.column.index===5&&d.cell.raw)d.cell.styles.textColor=[211,47,47];
+        if(d.column.index===6){const v=parseFloat(d.cell.raw);d.cell.styles.textColor=v>=0?[21,101,192]:[211,47,47];}
+      }
+    }
+  });
+
+  const fY = Math.min(doc.lastAutoTable.finalY+8,278);
+  doc.setFillColor(21,101,192); doc.rect(0,fY,W,14,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text('MO Debit Tracker | Mohammed Mahmoud Al-Haddad',M,fY+9);
+  doc.text(`Statement: ${new Date().toLocaleDateString('en-GB')}`,W-M,fY+9,{align:'right'});
+
+  doc.save(`${currentPerson.replace(/\s+/g,'_')}_${today()}.pdf`);
+  toast('PDF downloaded!');
+}
+
+// Unregister old service workers
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+}
+</script>
+</body>
+</html>
